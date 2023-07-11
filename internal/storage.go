@@ -34,3 +34,11 @@ func (m *MemStorage) CounterUpdate(key string, value int64) {
 		m.counter[key] = value
 	}
 }
+
+func (m *MemStorage) GaugeMap() map[string]float64 {
+	return m.gauge
+}
+
+func (m *MemStorage) CounterMap() map[string]int64 {
+	return m.counter
+}

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"github.com/personage-hub/metrics-tracker/internal"
 	"io"
 	"math/rand"
 	"net/http"
@@ -102,36 +103,41 @@ var metricFuncMap = map[string]func(*runtime.MemStats) float64{
 }
 
 func main() {
-	go startReporting()
-	startPolling()
+	storage := internal.NewMemStorage()
+	go startPolling(storage)
+	startReporting(storage)
 }
 
-func startPolling() {
+func startPolling(s *internal.MemStorage) {
 	for {
-		collectMetrics()
+		collectMetrics(s)
 		time.Sleep(pollInterval)
 	}
 }
 
-func collectMetrics() {
-	updateGaugeMetric("RandomValue", rand.Float64())
+func collectMetrics(s *internal.MemStorage) {
+	s.GaugeUpdate("RandomValue", rand.Float64())
 
 	var metrics runtime.MemStats
 	runtime.ReadMemStats(&metrics)
-	incrementCounterMetric("PollCount")
 
 	for metricName, metricFunc := range metricFuncMap {
 		value := metricFunc(&metrics)
-		updateGaugeMetric(metricName, value)
+		s.GaugeUpdate(metricName, value)
+	}
+	s.CounterUpdate("PollCount", 1)
+}
+
+func updateGaugeMetrics(metrics map[string]float64) {
+	for metricName, metricValue := range metrics {
+		go sendMetric("gauge", metricName, strconv.FormatFloat(metricValue, 'f', -1, 64))
 	}
 }
 
-func updateGaugeMetric(name string, value float64) {
-	sendMetric("gauge", name, strconv.FormatFloat(value, 'f', -1, 64))
-}
-
-func incrementCounterMetric(name string) {
-	sendMetric("counter", name, "1")
+func updateCounterMetrics(metrics map[string]int64) {
+	for metricName, metricValue := range metrics {
+		go sendMetric("gauge", metricName, strconv.FormatInt(metricValue, 10))
+	}
 }
 
 func sendMetric(metricType, metricName, metricValue string) {
@@ -163,10 +169,11 @@ func sendMetric(metricType, metricName, metricValue string) {
 	fmt.Println("Body:", string(body))
 }
 
-func startReporting() {
+func startReporting(s *internal.MemStorage) {
 	for {
-		time.Sleep(reportInterval)
 		fmt.Println("Reporting metrics to server...")
-		// Добавьте здесь логику для отправки отчета на сервер
+		updateGaugeMetrics(s.GaugeMap())
+		updateCounterMetrics(s.CounterMap())
+		time.Sleep(reportInterval)
 	}
 }
