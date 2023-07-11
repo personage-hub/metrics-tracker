@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math/rand"
 	"net/http"
 	"runtime"
@@ -17,7 +17,7 @@ const (
 	serverAddress  = "http://localhost:8080"
 )
 
-var metricFuncMap = map[string]func(m *runtime.MemStats) float64{
+var metricFuncMap = map[string]func(*runtime.MemStats) float64{
 	"Alloc": func(m *runtime.MemStats) float64 {
 		return float64(m.Alloc)
 	},
@@ -28,7 +28,7 @@ var metricFuncMap = map[string]func(m *runtime.MemStats) float64{
 		return float64(m.Frees)
 	},
 	"GCCPUFraction": func(m *runtime.MemStats) float64 {
-		return float64(m.GCCPUFraction)
+		return m.GCCPUFraction
 	},
 	"GCSys": func(m *runtime.MemStats) float64 {
 		return float64(m.GCSys)
@@ -116,7 +116,7 @@ func startPolling() {
 func collectMetrics() {
 	updateGaugeMetric("RandomValue", rand.Float64())
 
-	metrics := runtime.MemStats{}
+	var metrics runtime.MemStats
 	runtime.ReadMemStats(&metrics)
 	incrementCounterMetric("PollCount")
 
@@ -145,7 +145,7 @@ func sendMetric(metricType, metricName, metricValue string) {
 
 	req.Header.Set("Content-Type", "text/plain")
 
-	client := &http.Client{}
+	client := http.DefaultClient
 	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Println("Error sending metric:", err)
@@ -153,7 +153,7 @@ func sendMetric(metricType, metricName, metricValue string) {
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Println("Error reading response:", err)
 		return
