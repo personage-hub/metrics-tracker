@@ -84,6 +84,7 @@ func TestUpdateMetricFunc(t *testing.T) {
 			updateMetric(response, request, tt.storage)
 			result := response.Result()
 			assert.Equal(t, tt.want.statusCode, result.StatusCode)
+			defer result.Body.Close()
 		})
 	}
 }
@@ -127,6 +128,7 @@ func TestUpdateGaugeMetricStorage(t *testing.T) {
 			resultValue := s.GetGaugeMetric(tt.metricName)
 			wantValue, _ := strconv.ParseFloat(tt.metricValue, 64)
 			assert.Equal(t, resultValue, wantValue)
+			defer result.Body.Close()
 
 		})
 	}
@@ -171,7 +173,7 @@ func TestUpdateCounterMetricStorage(t *testing.T) {
 			resultValue := s.GetCounterMetric(tt.metricName)
 			wantValue, _ := strconv.ParseInt(tt.metricValue, 10, 64)
 			assert.Equal(t, resultValue, wantValue)
-
+			defer result.Body.Close()
 		})
 	}
 }
