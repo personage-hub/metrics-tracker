@@ -42,3 +42,11 @@ func (m *MemStorage) GaugeMap() map[string]float64 {
 func (m *MemStorage) CounterMap() map[string]int64 {
 	return m.counter
 }
+
+func (m *MemStorage) GetGaugeMetric(metricName string) float64 {
+	return m.gauge[metricName]
+}
+
+func (m *MemStorage) GetCounterMetric(metricName string) int64 {
+	return m.counter[metricName]
+}

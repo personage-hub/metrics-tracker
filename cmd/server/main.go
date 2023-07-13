@@ -23,12 +23,17 @@ func main() {
 }
 
 func updateMetric(res http.ResponseWriter, req *http.Request, storage *internal.MemStorage) {
+	if req.Method != http.MethodPost {
+		res.WriteHeader(http.StatusMethodNotAllowed)
+		res.Write([]byte("Method not allowed"))
+		return
+	}
 	urlParts := strings.Split(req.URL.Path, "/")
 	if len(urlParts) != 5 {
 		res.WriteHeader(http.StatusNotFound)
 		return
 	}
-	metricType := MetricType((urlParts[2]))
+	metricType := MetricType(urlParts[2])
 	metricName := urlParts[3]
 	metricValue := urlParts[4]
 	switch metricType {
