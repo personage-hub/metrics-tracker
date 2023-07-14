@@ -13,6 +13,12 @@ import (
 
 type MetricType string
 
+type storageKey int
+
+const (
+	storageKeyContextKey storageKey = iota
+)
+
 const (
 	Gauge   MetricType = "gauge"
 	Counter MetricType = "counter"
@@ -29,11 +35,11 @@ func metricsList(metricType MetricType, s *internal.MemStorage) []string {
 	var list []string
 	switch metricType {
 	case Gauge:
-		for metricName, _ := range s.GaugeMap() {
+		for metricName := range s.GaugeMap() {
 			list = append(list, metricName)
 		}
 	case Counter:
-		for metricName, _ := range s.CounterMap() {
+		for metricName := range s.CounterMap() {
 			list = append(list, metricName)
 		}
 	}
@@ -42,7 +48,7 @@ func metricsList(metricType MetricType, s *internal.MemStorage) []string {
 }
 
 func metricsHandle(rw http.ResponseWriter, r *http.Request) {
-	s := r.Context().Value("storage").(*internal.MemStorage)
+	s := r.Context().Value(storageKeyContextKey).(*internal.MemStorage)
 	gaugeList := metricsList(Gauge, s)
 	counterList := metricsList(Counter, s)
 
@@ -56,7 +62,7 @@ func metricsHandle(rw http.ResponseWriter, r *http.Request) {
 }
 
 func updateMetric(res http.ResponseWriter, req *http.Request) {
-	s := req.Context().Value("storage").(*internal.MemStorage)
+	s := req.Context().Value(storageKeyContextKey).(*internal.MemStorage)
 	if req.Method != http.MethodPost {
 		res.WriteHeader(http.StatusMethodNotAllowed)
 		res.Write([]byte("Method not allowed"))
@@ -65,6 +71,11 @@ func updateMetric(res http.ResponseWriter, req *http.Request) {
 	metricType := MetricType(strings.ToLower(chi.URLParam(req, "metricType")))
 	metricName := chi.URLParam(req, "metricName")
 	metricValue := chi.URLParam(req, "metricValue")
+	if metricName == "" {
+		res.WriteHeader(http.StatusNotFound)
+		res.Write([]byte(fmt.Errorf("metric unkwon").Error()))
+		return
+	}
 	switch metricType {
 	case Gauge:
 		floatValue, err := strconv.ParseFloat(metricValue, 64)
@@ -93,7 +104,7 @@ func updateMetric(res http.ResponseWriter, req *http.Request) {
 }
 
 func metricGet(writer http.ResponseWriter, request *http.Request) {
-	s := request.Context().Value("storage").(*internal.MemStorage)
+	s := request.Context().Value(storageKeyContextKey).(*internal.MemStorage)
 	metricType := MetricType(strings.ToLower(chi.URLParam(request, "metricType")))
 	metricName := chi.URLParam(request, "metricName")
 
@@ -129,7 +140,7 @@ func metricGet(writer http.ResponseWriter, request *http.Request) {
 func StorageMiddleware(s *internal.MemStorage) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx := context.WithValue(r.Context(), "storage", s)
+			ctx := context.WithValue(r.Context(), storageKeyContextKey, s)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
