@@ -117,8 +117,7 @@ func metricGet(writer http.ResponseWriter, request *http.Request) {
 		}
 		// Преобразуем значение к строке
 		valueStr := fmt.Sprintf("%v", value)
-		response := fmt.Sprintf("Имя метрики: %s, Значение метрики: %s", metricName, valueStr)
-		writer.Write([]byte(response))
+		writer.Write([]byte(valueStr))
 
 	case Counter:
 		value, ok := s.GetCounterMetric(metricName)
@@ -128,8 +127,7 @@ func metricGet(writer http.ResponseWriter, request *http.Request) {
 		}
 		// Преобразуем значение к строке
 		valueStr := fmt.Sprintf("%v", value)
-		response := fmt.Sprintf("Имя метрики: %s, Значение метрики: %s", metricName, valueStr)
-		writer.Write([]byte(response))
+		writer.Write([]byte(valueStr))
 
 	default:
 		writer.WriteHeader(http.StatusBadRequest)
