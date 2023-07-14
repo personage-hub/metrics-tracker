@@ -134,7 +134,7 @@ func updateCounterMetrics(metrics map[string]int64) {
 }
 
 func sendMetric(metricType, metricName, metricValue string) {
-	url := fmt.Sprintf("%s/update/%s/%s/%s", serverAddress, metricType, metricName, metricValue)
+	url := fmt.Sprintf("http://%s/update/%s/%s/%s", serverAddress, metricType, metricName, metricValue)
 
 	req, err := http.NewRequest("POST", url, bytes.NewBufferString(""))
 	if err != nil {
