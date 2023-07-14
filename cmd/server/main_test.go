@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"github.com/personage-hub/metrics-tracker/internal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -81,7 +82,7 @@ func TestUpdateMetricFunc(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			request := httptest.NewRequest(tt.method, tt.request, nil)
 			response := httptest.NewRecorder()
-			updateMetric(response, request, tt.storage)
+			updateMetric(response, request.WithContext(NewContextWithValue(request.Context(), "storage", tt.storage)))
 			result := response.Result()
 			assert.Equal(t, tt.want.statusCode, result.StatusCode)
 			defer result.Body.Close()
@@ -122,10 +123,10 @@ func TestUpdateGaugeMetricStorage(t *testing.T) {
 			uri := "/update/gauge/" + tt.metricName + "/" + tt.metricValue
 			request := httptest.NewRequest(http.MethodPost, uri, nil)
 			response := httptest.NewRecorder()
-			updateMetric(response, request, s)
+			updateMetric(response, request.WithContext(NewContextWithValue(request.Context(), "storage", s)))
 			result := response.Result()
 			require.Equal(t, tt.want.statusCode, result.StatusCode)
-			resultValue := s.GetGaugeMetric(tt.metricName)
+			resultValue, _ := s.GetGaugeMetric(tt.metricName)
 			wantValue, _ := strconv.ParseFloat(tt.metricValue, 64)
 			assert.Equal(t, resultValue, wantValue)
 			defer result.Body.Close()
@@ -167,13 +168,17 @@ func TestUpdateCounterMetricStorage(t *testing.T) {
 			uri := "/update/counter/" + tt.metricName + "/" + tt.metricValue
 			request := httptest.NewRequest(http.MethodPost, uri, nil)
 			response := httptest.NewRecorder()
-			updateMetric(response, request, s)
+			updateMetric(response, request.WithContext(NewContextWithValue(request.Context(), "storage", s)))
 			result := response.Result()
 			require.Equal(t, tt.want.statusCode, result.StatusCode)
-			resultValue := s.GetCounterMetric(tt.metricName)
+			resultValue, _ := s.GetCounterMetric(tt.metricName)
 			wantValue, _ := strconv.ParseInt(tt.metricValue, 10, 64)
 			assert.Equal(t, resultValue, wantValue)
 			defer result.Body.Close()
 		})
 	}
+}
+
+func NewContextWithValue(ctx context.Context, key, value interface{}) context.Context {
+	return context.WithValue(ctx, key, value)
 }

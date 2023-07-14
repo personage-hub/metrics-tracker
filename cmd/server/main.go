@@ -55,20 +55,16 @@ func metricsHandle(rw http.ResponseWriter, r *http.Request) {
 	_, _ = io.WriteString(rw, result)
 }
 
-func updateMetric(res http.ResponseWriter, req *http.Request, storage *internal.MemStorage) {
+func updateMetric(res http.ResponseWriter, req *http.Request) {
+	s := req.Context().Value("storage").(*internal.MemStorage)
 	if req.Method != http.MethodPost {
 		res.WriteHeader(http.StatusMethodNotAllowed)
 		res.Write([]byte("Method not allowed"))
 		return
 	}
-	urlParts := strings.Split(req.URL.Path, "/")
-	if len(urlParts) != 5 {
-		res.WriteHeader(http.StatusNotFound)
-		return
-	}
-	metricType := MetricType(urlParts[2])
-	metricName := urlParts[3]
-	metricValue := urlParts[4]
+	metricType := MetricType(strings.ToLower(chi.URLParam(req, "metricType")))
+	metricName := chi.URLParam(req, "metricName")
+	metricValue := chi.URLParam(req, "metricValue")
 	switch metricType {
 	case Gauge:
 		floatValue, err := strconv.ParseFloat(metricValue, 64)
@@ -77,7 +73,7 @@ func updateMetric(res http.ResponseWriter, req *http.Request, storage *internal.
 			res.Write([]byte(fmt.Errorf("invalid metric type: %s", metricType).Error()))
 			return
 		}
-		storage.GaugeUpdate(metricName, floatValue)
+		s.GaugeUpdate(metricName, floatValue)
 
 	case Counter:
 		intValue, err := strconv.ParseInt(metricValue, 10, 64)
@@ -86,7 +82,7 @@ func updateMetric(res http.ResponseWriter, req *http.Request, storage *internal.
 			res.Write([]byte(fmt.Errorf("invalid metric type: %s", metricType).Error()))
 			return
 		}
-		storage.CounterUpdate(metricName, intValue)
+		s.CounterUpdate(metricName, intValue)
 
 	default:
 		res.WriteHeader(http.StatusBadRequest)
@@ -99,7 +95,7 @@ func updateMetric(res http.ResponseWriter, req *http.Request, storage *internal.
 func metricGet(writer http.ResponseWriter, request *http.Request) {
 	s := request.Context().Value("storage").(*internal.MemStorage)
 	metricType := MetricType(strings.ToLower(chi.URLParam(request, "metricType")))
-	metricName := strings.ToLower(chi.URLParam(request, "metricName"))
+	metricName := chi.URLParam(request, "metricName")
 
 	switch metricType {
 	case Gauge:
@@ -140,7 +136,6 @@ func StorageMiddleware(s *internal.MemStorage) func(next http.Handler) http.Hand
 }
 
 func run(storage *internal.MemStorage) error {
-
 	r := chi.NewRouter()
 
 	r.Use(StorageMiddleware(storage))
@@ -154,9 +149,7 @@ func run(storage *internal.MemStorage) error {
 		})
 	})
 
-	r.Post("/update", func(res http.ResponseWriter, req *http.Request) {
-		updateMetric(res, req, storage)
-	})
+	r.Post("/update/{metricType}/{metricName}/{metricValue}", updateMetric)
 
-	return http.ListenAndServe(`:8080`, r)
+	return http.ListenAndServe(":8080", r)
 }
