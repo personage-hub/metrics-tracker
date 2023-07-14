@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"github.com/go-chi/chi/v5"
 	"github.com/personage-hub/metrics-tracker/internal"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -20,6 +23,36 @@ func main() {
 	if err := run(storage); err != nil {
 		panic(err)
 	}
+}
+
+func metricsList(metricType MetricType, s *internal.MemStorage) []string {
+	var list []string
+	switch metricType {
+	case Gauge:
+		for metricName, _ := range s.GaugeMap() {
+			list = append(list, metricName)
+		}
+	case Counter:
+		for metricName, _ := range s.CounterMap() {
+			list = append(list, metricName)
+		}
+	}
+
+	return list
+}
+
+func metricsHandle(rw http.ResponseWriter, r *http.Request) {
+	s := r.Context().Value("storage").(*internal.MemStorage)
+	gaugeList := metricsList(Gauge, s)
+	counterList := metricsList(Counter, s)
+
+	result := "Gauge list: " +
+		strings.Join(gaugeList, ", ") +
+		"\n" +
+		"Counter list: " +
+		strings.Join(counterList, ", ")
+
+	_, _ = io.WriteString(rw, result)
 }
 
 func updateMetric(res http.ResponseWriter, req *http.Request, storage *internal.MemStorage) {
@@ -63,10 +96,67 @@ func updateMetric(res http.ResponseWriter, req *http.Request, storage *internal.
 	res.WriteHeader(http.StatusOK)
 }
 
+func metricGet(writer http.ResponseWriter, request *http.Request) {
+	s := request.Context().Value("storage").(*internal.MemStorage)
+	metricType := MetricType(strings.ToLower(chi.URLParam(request, "metricType")))
+	metricName := strings.ToLower(chi.URLParam(request, "metricName"))
+
+	switch metricType {
+	case Gauge:
+		value, ok := s.GetGaugeMetric(metricName)
+		if !ok {
+			writer.WriteHeader(http.StatusNotFound)
+			return
+		}
+		// Преобразуем значение к строке
+		valueStr := fmt.Sprintf("%v", value)
+		response := fmt.Sprintf("Имя метрики: %s, Значение метрики: %s", metricName, valueStr)
+		writer.Write([]byte(response))
+
+	case Counter:
+		value, ok := s.GetCounterMetric(metricName)
+		if !ok {
+			writer.WriteHeader(http.StatusNotFound)
+			return
+		}
+		// Преобразуем значение к строке
+		valueStr := fmt.Sprintf("%v", value)
+		response := fmt.Sprintf("Имя метрики: %s, Значение метрики: %s", metricName, valueStr)
+		writer.Write([]byte(response))
+
+	default:
+		writer.WriteHeader(http.StatusBadRequest)
+		return
+	}
+}
+
+func StorageMiddleware(s *internal.MemStorage) func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := context.WithValue(r.Context(), "storage", s)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
 func run(storage *internal.MemStorage) error {
-	mux := http.NewServeMux()
-	mux.HandleFunc(`/update/`, func(res http.ResponseWriter, req *http.Request) {
+
+	r := chi.NewRouter()
+
+	r.Use(StorageMiddleware(storage))
+
+	r.Route("/", func(r chi.Router) {
+		r.Get("/", metricsHandle)
+		r.Route("/value", func(r chi.Router) {
+			r.Route("/{metricType}", func(r chi.Router) {
+				r.Get("/{metricName}", metricGet)
+			})
+		})
+	})
+
+	r.Post("/update", func(res http.ResponseWriter, req *http.Request) {
 		updateMetric(res, req, storage)
 	})
-	return http.ListenAndServe(`:8080`, mux)
+
+	return http.ListenAndServe(`:8080`, r)
 }

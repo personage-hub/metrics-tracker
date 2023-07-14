@@ -28,7 +28,7 @@ func TestUpdateMetricFunc(t *testing.T) {
 			storage: s,
 			method:  http.MethodPost,
 			want: want{
-				statusCode: 200,
+				statusCode: http.StatusOK,
 			},
 		},
 		{
@@ -37,7 +37,7 @@ func TestUpdateMetricFunc(t *testing.T) {
 			storage: s,
 			method:  http.MethodPost,
 			want: want{
-				statusCode: 404,
+				statusCode: http.StatusNotFound,
 			},
 		},
 		{
@@ -46,7 +46,7 @@ func TestUpdateMetricFunc(t *testing.T) {
 			storage: s,
 			method:  http.MethodGet,
 			want: want{
-				statusCode: 405,
+				statusCode: http.StatusMethodNotAllowed,
 			},
 		},
 		{
@@ -55,7 +55,7 @@ func TestUpdateMetricFunc(t *testing.T) {
 			storage: s,
 			method:  http.MethodPost,
 			want: want{
-				statusCode: 200,
+				statusCode: http.StatusOK,
 			},
 		},
 		{
@@ -64,7 +64,7 @@ func TestUpdateMetricFunc(t *testing.T) {
 			storage: s,
 			method:  http.MethodPost,
 			want: want{
-				statusCode: 404,
+				statusCode: http.StatusNotFound,
 			},
 		},
 		{
@@ -73,7 +73,7 @@ func TestUpdateMetricFunc(t *testing.T) {
 			storage: s,
 			method:  http.MethodGet,
 			want: want{
-				statusCode: 405,
+				statusCode: http.StatusMethodNotAllowed,
 			},
 		},
 	}
@@ -104,7 +104,7 @@ func TestUpdateGaugeMetricStorage(t *testing.T) {
 			metricName:  "someMetric",
 			metricValue: "230.001",
 			want: want{
-				statusCode: 200,
+				statusCode: http.StatusOK,
 			},
 		},
 		{
@@ -112,7 +112,7 @@ func TestUpdateGaugeMetricStorage(t *testing.T) {
 			metricName:  "someMetric",
 			metricValue: "inconvertible",
 			want: want{
-				statusCode: 400,
+				statusCode: http.StatusBadRequest,
 			},
 		},
 	}
@@ -149,7 +149,7 @@ func TestUpdateCounterMetricStorage(t *testing.T) {
 			metricName:  "someMetric",
 			metricValue: "230",
 			want: want{
-				statusCode: 200,
+				statusCode: http.StatusOK,
 			},
 		},
 		{
@@ -157,7 +157,7 @@ func TestUpdateCounterMetricStorage(t *testing.T) {
 			metricName:  "someMetric",
 			metricValue: "inconvertible",
 			want: want{
-				statusCode: 400,
+				statusCode: http.StatusBadRequest,
 			},
 		},
 	}

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/personage-hub/metrics-tracker/internal"
-	"io"
 	"math/rand"
 	"net/http"
 	"runtime"
@@ -146,7 +145,7 @@ func sendMetric(metricType, metricName, metricValue string) {
 	req, err := http.NewRequest("POST", url, bytes.NewBufferString(""))
 	if err != nil {
 		fmt.Println("Error creating request:", err)
-		return
+		panic(err)
 	}
 
 	req.Header.Set("Content-Type", "text/plain")
@@ -155,18 +154,11 @@ func sendMetric(metricType, metricName, metricValue string) {
 	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Println("Error sending metric:", err)
-		return
+		panic(err)
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Println("Error reading response:", err)
-		return
-	}
-
 	fmt.Println("Response:", resp.Status)
-	fmt.Println("Body:", string(body))
 }
 
 func startReporting(s *internal.MemStorage) {
