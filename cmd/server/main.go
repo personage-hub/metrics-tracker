@@ -160,5 +160,5 @@ func run(storage *internal.MemStorage) error {
 
 	r.Post("/update/{metricType}/{metricName}/{metricValue}", updateMetric)
 
-	return http.ListenAndServe(":8080", r)
+	return http.ListenAndServe(serverAddress, r)
 }

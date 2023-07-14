@@ -11,12 +11,6 @@ import (
 	"time"
 )
 
-const (
-	pollInterval   = 2 * time.Second
-	reportInterval = 10 * time.Second
-	serverAddress  = "http://localhost:8080"
-)
-
 var metricFuncMap = map[string]func(*runtime.MemStats) float64{
 	"Alloc": func(m *runtime.MemStats) float64 {
 		return float64(m.Alloc)
