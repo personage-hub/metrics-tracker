@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
 	"github.com/personage-hub/metrics-tracker/internal"
 	"math/rand"
@@ -97,6 +98,9 @@ var metricFuncMap = map[string]func(*runtime.MemStats) float64{
 
 func main() {
 	storage := internal.NewMemStorage()
+
+	flag.Parse()
+
 	go startPolling(storage)
 	startReporting(storage)
 }
