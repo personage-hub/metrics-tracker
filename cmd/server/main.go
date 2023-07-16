@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"github.com/go-chi/chi/v5"
 	"github.com/personage-hub/metrics-tracker/internal"
@@ -28,7 +27,7 @@ const (
 func main() {
 	storage := internal.NewMemStorage()
 
-	flag.Parse()
+	parseFlags()
 
 	if err := run(storage); err != nil {
 		panic(err)

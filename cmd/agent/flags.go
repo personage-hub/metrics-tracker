@@ -11,7 +11,7 @@ var (
 	pollInterval   time.Duration
 )
 
-func init() {
+func parseFlag() {
 
 	flag.StringVar(&serverAddress, "a", "localhost:8080", "Address of the HTTP server endpoint")
 	flag.DurationVar(&reportInterval, "r", 10*time.Second, "Report interval for sending metrics to the server")
