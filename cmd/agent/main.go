@@ -126,13 +126,13 @@ func collectMetrics(s *internal.MemStorage) {
 
 func updateGaugeMetrics(metrics map[string]float64) {
 	for metricName, metricValue := range metrics {
-		go sendMetric("gauge", metricName, strconv.FormatFloat(metricValue, 'f', -1, 64))
+		sendMetric("gauge", metricName, strconv.FormatFloat(metricValue, 'f', -1, 64))
 	}
 }
 
 func updateCounterMetrics(metrics map[string]int64) {
 	for metricName, metricValue := range metrics {
-		go sendMetric("gauge", metricName, strconv.FormatInt(metricValue, 10))
+		sendMetric("gauge", metricName, strconv.FormatInt(metricValue, 10))
 	}
 }
 
