@@ -7,37 +7,38 @@ import (
 	"time"
 )
 
-var (
-	serverAddress       string
-	reportIntervalParam int
-	pollIntervalParam   int
-	reportInterval      time.Duration
-	pollInterval        time.Duration
-)
+type Config struct {
+	ServerAddress       string
+	ReportIntervalParam int
+	PollIntervalParam   int
+	ReportInterval      time.Duration
+	PollInterval        time.Duration
+}
 
-func parseFlag() {
+func parseFlag() Config {
+	var config Config
 
-	flag.StringVar(&serverAddress, "a", "localhost:8080", "Address of the HTTP server endpoint")
-	flag.IntVar(&reportIntervalParam, "r", 10, "Report interval for sending metrics to the server")
-	flag.IntVar(&pollIntervalParam, "p", 2, "Poll interval for collecting metrics")
+	flag.StringVar(&config.ServerAddress, "a", "localhost:8080", "Address of the HTTP server endpoint")
+	flag.IntVar(&config.ReportIntervalParam, "r", 10, "Report interval for sending metrics to the server")
+	flag.IntVar(&config.PollIntervalParam, "p", 2, "Poll interval for collecting metrics")
 	flag.Parse()
 
 	if envValue := os.Getenv("ADDRESS"); envValue != "" {
-		serverAddress = envValue
+		config.ServerAddress = envValue
 	}
 	if envValue := os.Getenv("REPORT_INTERVAL"); envValue != "" {
 		if intValue, err := strconv.Atoi(envValue); err == nil {
-			reportIntervalParam = intValue
+			config.ReportIntervalParam = intValue
 		}
 	}
 	if envValue := os.Getenv("POLL_INTERVAL"); envValue != "" {
 		if intValue, err := strconv.Atoi(envValue); err == nil {
-			pollIntervalParam = intValue
+			config.PollIntervalParam = intValue
 		}
 	}
 
-	reportInterval = time.Duration(reportIntervalParam) * time.Second
-	pollInterval = time.Duration(pollIntervalParam) * time.Second
-	reportInterval = time.Duration(reportIntervalParam) * time.Second
-	pollInterval = time.Duration(pollIntervalParam) * time.Second
+	config.ReportInterval = time.Duration(config.ReportIntervalParam) * time.Second
+	config.PollInterval = time.Duration(config.PollIntervalParam) * time.Second
+
+	return config
 }

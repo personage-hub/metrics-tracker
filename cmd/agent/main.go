@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/personage-hub/metrics-tracker/internal"
+	"github.com/pkg/errors"
 	"math/rand"
 	"net/http"
 	"runtime"
@@ -98,20 +99,41 @@ var metricFuncMap = map[string]func(*runtime.MemStats) float64{
 func main() {
 	storage := internal.NewMemStorage()
 
-	parseFlag()
+	config := parseFlag()
 
-	go startPolling(storage)
-	startReporting(storage)
+	go func() {
+		err := startMonitoring(storage, config)
+		if err != nil {
+			fmt.Printf("Error in monitoring: %v\n", err)
+		}
+	}()
+
+	select {}
 }
 
-func startPolling(s *internal.MemStorage) {
+func startMonitoring(s *internal.MemStorage, c Config) error {
+	tickerPoll := time.NewTicker(c.PollInterval)
+	tickerReport := time.NewTicker(c.ReportInterval)
+	defer tickerPoll.Stop()
+	defer tickerReport.Stop()
+
 	for {
-		collectMetrics(s)
-		time.Sleep(pollInterval)
+		select {
+		case <-tickerPoll.C:
+			err := collectMetrics(s)
+			if err != nil {
+				return errors.Wrap(err, "collecting metrics")
+			}
+		case <-tickerReport.C:
+			err := startReporting(c.ServerAddress, s)
+			if err != nil {
+				return errors.Wrap(err, "reporting metrics")
+			}
+		}
 	}
 }
 
-func collectMetrics(s *internal.MemStorage) {
+func collectMetrics(s *internal.MemStorage) error {
 	s.GaugeUpdate("RandomValue", rand.Float64())
 
 	var metrics runtime.MemStats
@@ -122,27 +144,36 @@ func collectMetrics(s *internal.MemStorage) {
 		s.GaugeUpdate(metricName, value)
 	}
 	s.CounterUpdate("PollCount", 1)
+
+	return nil
 }
 
-func updateGaugeMetrics(metrics map[string]float64) {
+func updateGaugeMetrics(serverAddress string, metrics map[string]float64) error {
 	for metricName, metricValue := range metrics {
-		sendMetric("gauge", metricName, strconv.FormatFloat(metricValue, 'f', -1, 64))
+		err := sendMetric(serverAddress, "gauge", metricName, strconv.FormatFloat(metricValue, 'f', -1, 64))
+		if err != nil {
+			return errors.Wrap(err, "sending gauge metric")
+		}
 	}
+	return nil
 }
 
-func updateCounterMetrics(metrics map[string]int64) {
+func updateCounterMetrics(serverAddress string, metrics map[string]int64) error {
 	for metricName, metricValue := range metrics {
-		sendMetric("gauge", metricName, strconv.FormatInt(metricValue, 10))
+		err := sendMetric(serverAddress, "counter", metricName, strconv.FormatInt(metricValue, 10))
+		if err != nil {
+			return errors.Wrap(err, "sending counter metric")
+		}
 	}
+	return nil
 }
 
-func sendMetric(metricType, metricName, metricValue string) {
+func sendMetric(serverAddress string, metricType, metricName, metricValue string) error {
 	url := fmt.Sprintf("http://%s/update/%s/%s/%s", serverAddress, metricType, metricName, metricValue)
 
 	req, err := http.NewRequest("POST", url, bytes.NewBufferString(""))
 	if err != nil {
-		fmt.Println("Error creating request:", err)
-		panic(err)
+		return errors.Wrap(err, "creating request")
 	}
 
 	req.Header.Set("Content-Type", "text/plain")
@@ -150,19 +181,24 @@ func sendMetric(metricType, metricName, metricValue string) {
 	client := http.DefaultClient
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Error sending metric:", err)
-		panic(err)
+		return errors.Wrap(err, "sending metric")
 	}
 	defer resp.Body.Close()
 
 	fmt.Println("Response:", resp.Status)
+
+	return nil
 }
 
-func startReporting(s *internal.MemStorage) {
-	for {
-		fmt.Println("Reporting metrics to server...")
-		updateGaugeMetrics(s.GaugeMap())
-		updateCounterMetrics(s.CounterMap())
-		time.Sleep(reportInterval)
+func startReporting(serverAddress string, s *internal.MemStorage) error {
+	fmt.Println("Reporting metrics to server...")
+	err := updateGaugeMetrics(serverAddress, s.GaugeMap())
+	if err != nil {
+		return errors.Wrap(err, "updating gauge metrics")
 	}
+	err = updateCounterMetrics(serverAddress, s.CounterMap())
+	if err != nil {
+		return errors.Wrap(err, "updating counter metrics")
+	}
+	return nil
 }
