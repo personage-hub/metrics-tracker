@@ -13,14 +13,15 @@ import (
 )
 
 func TestUpdateMetricFunc(t *testing.T) {
-	s := internal.NewMemStorage()
+	storage := internal.NewMemStorage()
+	server := NewServer(storage)
 	type want struct {
 		statusCode int
 	}
 	tests := []struct {
 		name        string
 		request     string
-		storage     *internal.MemStorage
+		server      *Server
 		method      string
 		metricType  MetricType
 		metricName  string
@@ -30,7 +31,7 @@ func TestUpdateMetricFunc(t *testing.T) {
 		{
 			name:        "Success Update gauge value",
 			request:     "/update",
-			storage:     s,
+			server:      server,
 			method:      http.MethodPost,
 			metricType:  MetricType("gauge"),
 			metricName:  "someMetric",
@@ -42,7 +43,7 @@ func TestUpdateMetricFunc(t *testing.T) {
 		{
 			name:        "Fail Update gauge value",
 			request:     "/update",
-			storage:     s,
+			server:      server,
 			method:      http.MethodPost,
 			metricType:  MetricType("gauge"),
 			metricName:  "",
@@ -54,7 +55,7 @@ func TestUpdateMetricFunc(t *testing.T) {
 		{
 			name:        "Fail Update gauge Method get not allowed",
 			request:     "/update",
-			storage:     s,
+			server:      server,
 			metricType:  MetricType("gauge"),
 			metricName:  "someMetric",
 			metricValue: "543.0",
@@ -66,7 +67,7 @@ func TestUpdateMetricFunc(t *testing.T) {
 		{
 			name:        "Success Counter gauge value",
 			request:     "/update",
-			storage:     s,
+			server:      server,
 			method:      http.MethodPost,
 			metricType:  MetricType("counter"),
 			metricName:  "someMetric",
@@ -78,7 +79,7 @@ func TestUpdateMetricFunc(t *testing.T) {
 		{
 			name:        "Fail Update Counter value",
 			request:     "/update",
-			storage:     s,
+			server:      server,
 			metricType:  MetricType("counter"),
 			metricName:  "",
 			metricValue: "",
@@ -90,7 +91,7 @@ func TestUpdateMetricFunc(t *testing.T) {
 		{
 			name:        "Fail Update Counter Method get not allowed",
 			request:     "/update",
-			storage:     s,
+			server:      server,
 			metricType:  MetricType("counter"),
 			metricName:  "someMetric",
 			metricValue: "527",
@@ -112,7 +113,7 @@ func TestUpdateMetricFunc(t *testing.T) {
 			routeContext.URLParams.Add("metricValue", tt.metricValue)
 			request = request.WithContext(ctx)
 
-			updateMetric(response, request.WithContext(NewContextWithValue(request.Context(), storageKeyContextKey, tt.storage)))
+			server.updateMetric(response, request)
 			result := response.Result()
 			assert.Equal(t, tt.want.statusCode, result.StatusCode)
 			defer result.Body.Close()
@@ -152,7 +153,8 @@ func TestUpdateGaugeMetricStorage(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := internal.NewMemStorage()
+			storage := internal.NewMemStorage()
+			server := NewServer(storage)
 			uri := "/update/gauge/" + tt.metricName + "/" + tt.metricValue
 			request := httptest.NewRequest(http.MethodPost, uri, nil)
 			response := httptest.NewRecorder()
@@ -164,10 +166,10 @@ func TestUpdateGaugeMetricStorage(t *testing.T) {
 			routeContext.URLParams.Add("metricValue", tt.metricValue)
 			request = request.WithContext(ctx)
 
-			updateMetric(response, request.WithContext(NewContextWithValue(request.Context(), storageKeyContextKey, s)))
+			server.updateMetric(response, request)
 			result := response.Result()
 			require.Equal(t, tt.want.statusCode, result.StatusCode)
-			resultValue, _ := s.GetGaugeMetric(tt.metricName)
+			resultValue, _ := storage.GetGaugeMetric(tt.metricName)
 			wantValue, _ := strconv.ParseFloat(tt.metricValue, 64)
 			assert.Equal(t, wantValue, resultValue)
 			defer result.Body.Close()
@@ -207,7 +209,8 @@ func TestUpdateCounterMetricStorage(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := internal.NewMemStorage()
+			storage := internal.NewMemStorage()
+			server := NewServer(storage)
 			uri := "/update/counter/" + tt.metricName + "/" + tt.metricValue
 			request := httptest.NewRequest(http.MethodPost, uri, nil)
 			response := httptest.NewRecorder()
@@ -219,17 +222,13 @@ func TestUpdateCounterMetricStorage(t *testing.T) {
 			routeContext.URLParams.Add("metricValue", tt.metricValue)
 			request = request.WithContext(ctx)
 
-			updateMetric(response, request.WithContext(NewContextWithValue(request.Context(), storageKeyContextKey, s)))
+			server.updateMetric(response, request)
 			result := response.Result()
 			require.Equal(t, tt.want.statusCode, result.StatusCode)
-			resultValue, _ := s.GetCounterMetric(tt.metricName)
+			resultValue, _ := storage.GetCounterMetric(tt.metricName)
 			wantValue, _ := strconv.ParseInt(tt.metricValue, 10, 64)
 			assert.Equal(t, wantValue, resultValue)
 			defer result.Body.Close()
 		})
 	}
-}
-
-func NewContextWithValue(ctx context.Context, key storageKey, value *internal.MemStorage) context.Context {
-	return context.WithValue(ctx, key, value)
 }
