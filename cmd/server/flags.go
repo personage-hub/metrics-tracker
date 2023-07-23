@@ -5,14 +5,18 @@ import (
 	"os"
 )
 
-var serverAddress string
+type Config struct {
+	ServerAddress string
+}
 
-func parseFlags() {
-	flag.StringVar(&serverAddress, "a", "localhost:8080", "Address of the HTTP server endpoint")
+func parseFlags() Config {
+	var config Config
+	flag.StringVar(&config.ServerAddress, "a", "localhost:8080", "Address of the HTTP server endpoint")
 
 	if envValue := os.Getenv("ADDRESS"); envValue != "" {
-		serverAddress = envValue
+		config.ServerAddress = envValue
 	}
-
 	flag.Parse()
+
+	return config
 }

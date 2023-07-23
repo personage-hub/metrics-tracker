@@ -3,6 +3,7 @@ module github.com/personage-hub/metrics-tracker
 go 1.20
 
 require (
+	github.com/cornelk/hashmap v1.0.8
 	github.com/go-chi/chi/v5 v5.0.10
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.4
