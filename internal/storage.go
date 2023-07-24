@@ -17,7 +17,7 @@ func NewMemStorage() *MemStorage {
 }
 
 func (m *MemStorage) GaugeUpdate(key string, value float64) {
-	m.gauge.GetOrInsert(key, value)
+	m.gauge.Set(key, value)
 }
 
 func (m *MemStorage) CounterUpdate(key string, value int64) {
