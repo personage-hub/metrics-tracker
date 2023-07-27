@@ -13,6 +13,7 @@ type Config struct {
 	PollIntervalParam   int
 	ReportInterval      time.Duration
 	PollInterval        time.Duration
+	FlagLogLevel        string
 }
 
 func parseFlag() Config {
@@ -21,6 +22,7 @@ func parseFlag() Config {
 	flag.StringVar(&config.ServerAddress, "a", "localhost:8080", "Address of the HTTP server endpoint")
 	flag.IntVar(&config.ReportIntervalParam, "r", 10, "Report interval for sending metrics to the server")
 	flag.IntVar(&config.PollIntervalParam, "p", 2, "Poll interval for collecting metrics")
+	flag.StringVar(&config.FlagLogLevel, "l", "info", "Logging level")
 	flag.Parse()
 
 	if envValue := os.Getenv("ADDRESS"); envValue != "" {
