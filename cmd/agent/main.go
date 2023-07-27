@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"github.com/personage-hub/metrics-tracker/internal"
+	"github.com/personage-hub/metrics-tracker/internal/storage"
 	"github.com/pkg/errors"
 	"math/rand"
 	"net/http"
@@ -97,7 +97,7 @@ var metricFuncMap = map[string]func(*runtime.MemStats) float64{
 }
 
 func main() {
-	storage := internal.NewMemStorage()
+	storage := storage.NewMemStorage()
 
 	config := parseFlag()
 
@@ -111,7 +111,7 @@ func main() {
 	select {}
 }
 
-func startMonitoring(s *internal.MemStorage, c Config) error {
+func startMonitoring(s *storage.MemStorage, c Config) error {
 	tickerPoll := time.NewTicker(c.PollInterval)
 	tickerReport := time.NewTicker(c.ReportInterval)
 	defer tickerPoll.Stop()
@@ -133,7 +133,7 @@ func startMonitoring(s *internal.MemStorage, c Config) error {
 	}
 }
 
-func collectMetrics(s *internal.MemStorage) error {
+func collectMetrics(s *storage.MemStorage) error {
 	s.GaugeUpdate("RandomValue", rand.Float64())
 
 	var metrics runtime.MemStats
@@ -190,7 +190,7 @@ func sendMetric(serverAddress string, metricType, metricName, metricValue string
 	return nil
 }
 
-func startReporting(serverAddress string, s *internal.MemStorage) error {
+func startReporting(serverAddress string, s *storage.MemStorage) error {
 	fmt.Println("Reporting metrics to server...")
 	err := updateGaugeMetrics(serverAddress, s.GaugeMap())
 	if err != nil {

@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"github.com/go-chi/chi/v5"
-	"github.com/personage-hub/metrics-tracker/internal"
+	"github.com/personage-hub/metrics-tracker/internal/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"net/http"
@@ -13,7 +13,7 @@ import (
 )
 
 func TestUpdateMetricFunc(t *testing.T) {
-	storage := internal.NewMemStorage()
+	storage := storage.NewMemStorage()
 	server := NewServer(storage)
 	type want struct {
 		statusCode int
@@ -153,7 +153,7 @@ func TestUpdateGaugeMetricStorage(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			storage := internal.NewMemStorage()
+			storage := storage.NewMemStorage()
 			server := NewServer(storage)
 			uri := "/update/gauge/" + tt.metricName + "/" + tt.metricValue
 			request := httptest.NewRequest(http.MethodPost, uri, nil)
@@ -209,7 +209,7 @@ func TestUpdateCounterMetricStorage(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			storage := internal.NewMemStorage()
+			storage := storage.NewMemStorage()
 			server := NewServer(storage)
 			uri := "/update/counter/" + tt.metricName + "/" + tt.metricValue
 			request := httptest.NewRequest(http.MethodPost, uri, nil)

@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/go-chi/chi/v5"
-	"github.com/personage-hub/metrics-tracker/internal"
+	"github.com/personage-hub/metrics-tracker/internal/storage"
 	"io"
 	"net/http"
 	"strconv"
@@ -11,7 +11,7 @@ import (
 )
 
 type Server struct {
-	storage *internal.MemStorage
+	storage *storage.MemStorage
 }
 
 type MetricType string
@@ -21,7 +21,7 @@ const (
 	Counter MetricType = "counter"
 )
 
-func NewServer(storage *internal.MemStorage) *Server {
+func NewServer(storage *storage.MemStorage) *Server {
 	return &Server{
 		storage: storage,
 	}
@@ -130,7 +130,7 @@ func (s *Server) metricGet(writer http.ResponseWriter, request *http.Request) {
 
 func (s *Server) Run(c Config) error {
 	r := chi.NewRouter()
-
+	r.Use(requestWithLogging)
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", s.metricsHandle)
 		r.Route("/value", func(r chi.Router) {
