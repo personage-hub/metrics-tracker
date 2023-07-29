@@ -122,7 +122,7 @@ func TestUpdateMetricFunc(t *testing.T) {
 			ctx := context.WithValue(request.Context(), chi.RouteCtxKey, chi.NewRouteContext())
 			request = request.WithContext(ctx)
 
-			server.updateMetric(response, request)
+			server.updateMetricV2(response, request)
 			result := response.Result()
 			assert.Equal(t, tt.want.statusCode, result.StatusCode)
 			defer result.Body.Close()
@@ -167,7 +167,7 @@ func TestUpdateGaugeMetricStorage(t *testing.T) {
 
 			request = request.WithContext(ctx)
 
-			server.updateMetric(response, request)
+			server.updateMetricV2(response, request)
 			result := response.Result()
 			require.Equal(t, tt.want.statusCode, result.StatusCode)
 			var m metrics.Metrics
@@ -215,7 +215,7 @@ func TestUpdateCounterMetricStorage(t *testing.T) {
 
 			request = request.WithContext(ctx)
 
-			server.updateMetric(response, request)
+			server.updateMetricV2(response, request)
 			result := response.Result()
 			require.Equal(t, tt.want.statusCode, result.StatusCode)
 			var m metrics.Metrics
