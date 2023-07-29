@@ -3,14 +3,15 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"github.com/mailru/easyjson"
 	"github.com/personage-hub/metrics-tracker/internal/logger"
+	"github.com/personage-hub/metrics-tracker/internal/metrics"
 	"github.com/personage-hub/metrics-tracker/internal/storage"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"math/rand"
 	"net/http"
 	"runtime"
-	"strconv"
 	"time"
 )
 
@@ -113,15 +114,20 @@ func NewMonitoringClient(client *http.Client, config Config) *MonitoringClient {
 	}
 }
 
-func (mc *MonitoringClient) SendMetric(metricType, metricName, metricValue string) error {
-	url := fmt.Sprintf("http://%s/update/%s/%s/%s", mc.Config.ServerAddress, metricType, metricName, metricValue)
+func (mc *MonitoringClient) SendMetric(metric metrics.Metrics) error {
+	url := fmt.Sprintf("http://%s/update/", mc.Config.ServerAddress)
 
-	req, err := http.NewRequest("POST", url, bytes.NewBufferString(""))
+	data, err := easyjson.Marshal(metric)
+	if err != nil {
+		return errors.Wrap(err, "Converting data for request")
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
 	if err != nil {
 		return errors.Wrap(err, "creating request")
 	}
 
-	req.Header.Set("Content-Type", "text/plain")
+	req.Header.Set("Content-Type", "application/json")
 
 	start := time.Now()
 
@@ -184,7 +190,12 @@ func (mc *MonitoringClient) CollectMetrics() error {
 
 func (mc *MonitoringClient) UpdateGaugeMetrics() error {
 	for metricName, metricValue := range mc.Storage.GaugeMap() {
-		err := mc.SendMetric("gauge", metricName, strconv.FormatFloat(metricValue, 'f', -1, 64))
+		m := metrics.Metrics{
+			ID:    metricName,
+			MType: "gauge",
+			Value: &metricValue,
+		}
+		err := mc.SendMetric(m)
 		if err != nil {
 			return errors.Wrap(err, "sending gauge metric")
 		}
@@ -194,7 +205,12 @@ func (mc *MonitoringClient) UpdateGaugeMetrics() error {
 
 func (mc *MonitoringClient) UpdateCounterMetrics() error {
 	for metricName, metricValue := range mc.Storage.CounterMap() {
-		err := mc.SendMetric("counter", metricName, strconv.FormatInt(metricValue, 10))
+		m := metrics.Metrics{
+			ID:    metricName,
+			MType: "counter",
+			Delta: &metricValue,
+		}
+		err := mc.SendMetric(m)
 		if err != nil {
 			return errors.Wrap(err, "sending counter metric")
 		}
