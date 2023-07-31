@@ -175,10 +175,10 @@ func (s *Server) metricGetV1(writer http.ResponseWriter, request *http.Request) 
 func (s *Server) Run(c Config) error {
 	r := chi.NewRouter()
 	r.Route("/", func(r chi.Router) {
-		r.Post("/api/v1/update/{metricType}/{metricName}/{metricValue}", s.updateMetricV1)
-		r.Get("/api/v1/value/{metricType}/{metricName}", s.metricGetV1)
-		r.Post("/api/v2/update/", s.updateMetricV2)
-		r.Post("/api/v2/value/", s.getMetricV2)
+		r.Post("/api/update/{metricType}/{metricName}/{metricValue}", s.updateMetricV1)
+		r.Get("/api/value/{metricType}/{metricName}", s.metricGetV1)
+		r.Post("/api/update/", s.updateMetricV2)
+		r.Post("/api/value/", s.getMetricV2)
 	})
 
 	return http.ListenAndServe(c.ServerAddress, r)
