@@ -202,35 +202,39 @@ func (s *Server) metricsHandle(rw http.ResponseWriter, r *http.Request) {
 	_, _ = io.WriteString(rw, result)
 }
 
-func (s *Server) metricGet(writer http.ResponseWriter, request *http.Request) {
-	metricType := strings.ToLower(chi.URLParam(request, "metricType"))
-	metricName := chi.URLParam(request, "metricName")
-
-	switch metricType {
-	case "gauge":
-		value, ok := s.storage.GetGaugeMetric(metricName)
-		if !ok {
-			writer.WriteHeader(http.StatusNotFound)
-			return
-		}
-		// Преобразуем значение к строке
-		valueStr := fmt.Sprintf("%v", value)
-		writer.Write([]byte(valueStr))
-
-	case "counter":
-		value, ok := s.storage.GetCounterMetric(metricName)
-		if !ok {
-			writer.WriteHeader(http.StatusNotFound)
-			return
-		}
-		// Преобразуем значение к строке
-		valueStr := fmt.Sprintf("%v", value)
-		writer.Write([]byte(valueStr))
-
-	default:
-		writer.WriteHeader(http.StatusBadRequest)
+func (s *Server) metricGetV2(rw http.ResponseWriter, r *http.Request) {
+	var metric metrics.Metrics
+	err := easyjson.UnmarshalFromReader(r.Body, &metric)
+	if err != nil {
+		rw.WriteHeader(http.StatusBadRequest)
+		rw.Write([]byte("Invalid request payload"))
 		return
 	}
+
+	switch metric.MType {
+	case "gauge":
+		value, ok := s.storage.GetGaugeMetric(metric.ID)
+		if !ok {
+			rw.WriteHeader(http.StatusNotFound)
+			return
+		}
+		metric.Value = &value
+
+	case "counter":
+		value, ok := s.storage.GetCounterMetric(metric.ID)
+		if !ok {
+			rw.WriteHeader(http.StatusNotFound)
+			return
+		}
+		metric.Delta = &value
+	default:
+		rw.WriteHeader(http.StatusBadRequest)
+		rw.Write([]byte("Invalid metric type"))
+		return
+	}
+
+	data, _ := easyjson.Marshal(metric)
+	rw.Write(data) // send back the retrieved metric
 }
 
 func (s *Server) Run(c Config) error {
@@ -240,13 +244,14 @@ func (s *Server) Run(c Config) error {
 		r.Get("/", s.metricsHandle)
 		r.Route("/value", func(r chi.Router) {
 			r.Route("/{metricType}", func(r chi.Router) {
-				r.Get("/{metricName}", s.metricGet)
+				r.Get("/{metricName}", s.metricGetV1)
 			})
 		})
 	})
 
 	r.Post("/update/{metricType}/{metricName}/{metricValue}", s.updateMetricV1)
 	r.Post("/update/", s.updateMetricV2)
+	r.Post("/value/", s.metricGetV2)
 
 	return http.ListenAndServe(c.ServerAddress, r)
 }
