@@ -64,41 +64,8 @@ func (s *Server) updateMetricV2(res http.ResponseWriter, req *http.Request) {
 
 	data, _ := easyjson.Marshal(metric)
 	res.WriteHeader(http.StatusOK)
+	res.Header().Set("Content-Type", "application/json")
 	res.Write(data)
-}
-
-func (s *Server) getMetricV2(writer http.ResponseWriter, request *http.Request) {
-	var metric metrics.Metrics
-	err := easyjson.UnmarshalFromReader(request.Body, &metric)
-	if err != nil {
-		writer.WriteHeader(http.StatusBadRequest)
-		writer.Write([]byte("Invalid request payload"))
-		return
-	}
-
-	switch metric.MType {
-	case "gauge":
-		value, ok := s.storage.GetGaugeMetric(metric.ID)
-		if !ok {
-			writer.WriteHeader(http.StatusNotFound)
-			return
-		}
-		metric.Value = &value
-	case "counter":
-		value, ok := s.storage.GetCounterMetric(metric.ID)
-		if !ok {
-			writer.WriteHeader(http.StatusNotFound)
-			return
-		}
-		metric.Delta = &value
-	default:
-		writer.WriteHeader(http.StatusBadRequest)
-		writer.Write([]byte("Invalid metric type"))
-		return
-	}
-
-	data, _ := easyjson.Marshal(metric)
-	writer.Write(data) // send back the retrieved metric
 }
 
 func (s *Server) updateMetricV1(res http.ResponseWriter, req *http.Request) {
@@ -234,6 +201,7 @@ func (s *Server) metricGetV2(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	data, _ := easyjson.Marshal(metric)
+	rw.Header().Set("Content-Type", "application/json")
 	rw.Write(data) // send back the retrieved metric
 }
 
@@ -251,7 +219,7 @@ func (s *Server) Run(c Config) error {
 
 	r.Post("/update/{metricType}/{metricName}/{metricValue}", s.updateMetricV1)
 	r.Post("/update/", s.updateMetricV2)
-	r.Post("/value", s.metricGetV2)
+	r.Post("/value/", s.metricGetV2)
 
 	return http.ListenAndServe(c.ServerAddress, r)
 }
