@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -172,14 +173,80 @@ func (s *Server) metricGetV1(writer http.ResponseWriter, request *http.Request) 
 	}
 }
 
+func (s *Server) metricsList(metricType string) []string {
+	var list []string
+	switch metricType {
+	case "gauge":
+		for metricName := range s.storage.GaugeMap() {
+			list = append(list, metricName)
+		}
+	case "counter":
+		for metricName := range s.storage.CounterMap() {
+			list = append(list, metricName)
+		}
+	}
+
+	return list
+}
+
+func (s *Server) metricsHandle(rw http.ResponseWriter, r *http.Request) {
+	gaugeList := s.metricsList("gauge")
+	counterList := s.metricsList("counter")
+
+	result := "Gauge list: " +
+		strings.Join(gaugeList, ", ") +
+		"\n" +
+		"Counter list: " +
+		strings.Join(counterList, ", ")
+
+	_, _ = io.WriteString(rw, result)
+}
+
+func (s *Server) metricGet(writer http.ResponseWriter, request *http.Request) {
+	metricType := strings.ToLower(chi.URLParam(request, "metricType"))
+	metricName := chi.URLParam(request, "metricName")
+
+	switch metricType {
+	case "gauge":
+		value, ok := s.storage.GetGaugeMetric(metricName)
+		if !ok {
+			writer.WriteHeader(http.StatusNotFound)
+			return
+		}
+		// Преобразуем значение к строке
+		valueStr := fmt.Sprintf("%v", value)
+		writer.Write([]byte(valueStr))
+
+	case "counter":
+		value, ok := s.storage.GetCounterMetric(metricName)
+		if !ok {
+			writer.WriteHeader(http.StatusNotFound)
+			return
+		}
+		// Преобразуем значение к строке
+		valueStr := fmt.Sprintf("%v", value)
+		writer.Write([]byte(valueStr))
+
+	default:
+		writer.WriteHeader(http.StatusBadRequest)
+		return
+	}
+}
+
 func (s *Server) Run(c Config) error {
 	r := chi.NewRouter()
+	r.Use(requestWithLogging)
 	r.Route("/", func(r chi.Router) {
-		r.Post("/api/update/{metricType}/{metricName}/{metricValue}", s.updateMetricV1)
-		r.Get("/api/value/{metricType}/{metricName}", s.metricGetV1)
-		r.Post("/api/update/", s.updateMetricV2)
-		r.Post("/api/value/", s.getMetricV2)
+		r.Get("/", s.metricsHandle)
+		r.Route("/value", func(r chi.Router) {
+			r.Route("/{metricType}", func(r chi.Router) {
+				r.Get("/{metricName}", s.metricGet)
+			})
+		})
 	})
+
+	r.Post("/update/{metricType}/{metricName}/{metricValue}", s.updateMetricV1)
+	r.Post("/update/", s.updateMetricV2)
 
 	return http.ListenAndServe(c.ServerAddress, r)
 }
