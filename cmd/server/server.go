@@ -251,7 +251,7 @@ func (s *Server) Run(c Config) error {
 
 	r.Post("/update/{metricType}/{metricName}/{metricValue}", s.updateMetricV1)
 	r.Post("/update/", s.updateMetricV2)
-	r.Post("/value/", s.metricGetV2)
+	r.Post("/value", s.metricGetV2)
 
 	return http.ListenAndServe(c.ServerAddress, r)
 }
