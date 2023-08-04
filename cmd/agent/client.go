@@ -160,15 +160,9 @@ func (mc *MonitoringClient) StartMonitoring() error {
 	for {
 		select {
 		case <-tickerPoll.C:
-			err := mc.CollectMetrics()
-			if err != nil {
-				return errors.Wrap(err, "collecting metrics")
-			}
+			_ = mc.CollectMetrics()
 		case <-tickerReport.C:
-			err := mc.StartReporting()
-			if err != nil {
-				return errors.Wrap(err, "reporting metrics")
-			}
+			_ = mc.StartReporting()
 		}
 	}
 }
@@ -220,13 +214,7 @@ func (mc *MonitoringClient) UpdateCounterMetrics() error {
 
 func (mc *MonitoringClient) StartReporting() error {
 	fmt.Println("Reporting metrics to server...")
-	err := mc.UpdateGaugeMetrics()
-	if err != nil {
-		return errors.Wrap(err, "updating gauge metrics")
-	}
-	err = mc.UpdateCounterMetrics()
-	if err != nil {
-		return errors.Wrap(err, "updating counter metrics")
-	}
+	_ = mc.UpdateGaugeMetrics()
+	_ = mc.UpdateCounterMetrics()
 	return nil
 }
