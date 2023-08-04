@@ -120,8 +120,13 @@ func (s *Server) metricGetV1(writer http.ResponseWriter, request *http.Request) 
 			writer.WriteHeader(http.StatusNotFound)
 			return
 		}
-		// Преобразуем значение к строке
-		valueStr := fmt.Sprintf("%v", value)
+		var valueStr string
+
+		if value == float64(int64(value)) {
+			valueStr = fmt.Sprintf("%.f.", value)
+		} else {
+			valueStr = fmt.Sprintf("%v", value)
+		}
 		writer.Write([]byte(valueStr))
 
 	case "counter":
@@ -130,7 +135,7 @@ func (s *Server) metricGetV1(writer http.ResponseWriter, request *http.Request) 
 			writer.WriteHeader(http.StatusNotFound)
 			return
 		}
-		// Преобразуем значение к строке
+
 		valueStr := fmt.Sprintf("%v", value)
 		writer.Write([]byte(valueStr))
 
