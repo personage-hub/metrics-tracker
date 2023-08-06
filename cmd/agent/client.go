@@ -122,11 +122,14 @@ func (mc *MonitoringClient) compress(data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed init compress writer.")
 	}
-	_, err = gzw.Write(data)
-	if err != nil {
+
+	if _, err = gzw.Write(data); err != nil {
 		return nil, errors.Wrap(err, "failed to write compress data to buffer.")
 	}
-	defer gzw.Close()
+
+	if err = gzw.Close(); err != nil {
+		return nil, errors.Wrap(err, "failed to close compress writer.")
+	}
 
 	return b.Bytes(), nil
 }

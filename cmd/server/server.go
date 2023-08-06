@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	project_constants "github.com/personage-hub/metrics-tracker/internal/project_constants"
 	"io"
 	"net/http"
 	"strconv"
@@ -64,7 +65,7 @@ func (s *Server) updateMetricV2(res http.ResponseWriter, req *http.Request) {
 
 	data, _ := easyjson.Marshal(metric)
 	res.WriteHeader(http.StatusOK)
-	res.Header().Set("Content-Type", "application/json")
+	res.Header().Set("Content-Type", project_constants.ContentTypeJSON)
 	res.Write(data)
 }
 
@@ -213,6 +214,7 @@ func (s *Server) metricGetV2(rw http.ResponseWriter, r *http.Request) {
 func (s *Server) Run(c Config) error {
 	r := chi.NewRouter()
 	r.Use(requestWithLogging)
+	r.Use(gzipMiddleware)
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", s.metricsHandle)
 		r.Route("/value", func(r chi.Router) {
