@@ -7,6 +7,7 @@ import (
 	"github.com/mailru/easyjson"
 	"github.com/personage-hub/metrics-tracker/internal/logger"
 	"github.com/personage-hub/metrics-tracker/internal/metrics"
+	project_constants "github.com/personage-hub/metrics-tracker/internal/project_constants"
 	"github.com/personage-hub/metrics-tracker/internal/storage"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -15,9 +16,6 @@ import (
 	"runtime"
 	"time"
 )
-
-const contentType string = "application/json"
-const compression string = "gzip"
 
 type MonitoringClient struct {
 	Client        *http.Client
@@ -150,9 +148,9 @@ func (mc *MonitoringClient) SendMetric(metric metrics.Metrics) error {
 		return errors.Wrap(err, "creating request")
 	}
 
-	req.Header.Set("Content-Type", contentType)
-	req.Header.Set("Content-Encoding", compression)
-	req.Header.Set("Accept-Encoding", compression)
+	req.Header.Set("Content-Type", project_constants.ContentTypeJSON)
+	req.Header.Set("Content-Encoding", project_constants.Compression)
+	req.Header.Set("Accept-Encoding", project_constants.Compression)
 
 	start := time.Now()
 
