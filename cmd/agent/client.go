@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"fmt"
 	"github.com/mailru/easyjson"
 	"github.com/personage-hub/metrics-tracker/internal/logger"
@@ -14,6 +15,9 @@ import (
 	"runtime"
 	"time"
 )
+
+const contentType string = "application/json"
+const compression string = "gzip"
 
 type MonitoringClient struct {
 	Client        *http.Client
@@ -114,6 +118,21 @@ func NewMonitoringClient(client *http.Client, config Config) *MonitoringClient {
 	}
 }
 
+func (mc *MonitoringClient) compress(data []byte) ([]byte, error) {
+	var b bytes.Buffer
+	gzw, err := gzip.NewWriterLevel(&b, gzip.BestCompression)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed init compress writer.")
+	}
+	_, err = gzw.Write(data)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to write compress data to buffer.")
+	}
+	defer gzw.Close()
+
+	return b.Bytes(), nil
+}
+
 func (mc *MonitoringClient) SendMetric(metric metrics.Metrics) error {
 	url := fmt.Sprintf("http://%s/update/", mc.Config.ServerAddress)
 
@@ -121,13 +140,19 @@ func (mc *MonitoringClient) SendMetric(metric metrics.Metrics) error {
 	if err != nil {
 		return errors.Wrap(err, "Converting data for request")
 	}
+	compressData, err := mc.compress(data)
+	if err != nil {
+		return errors.Wrap(err, "Compress data for request")
+	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(compressData))
 	if err != nil {
 		return errors.Wrap(err, "creating request")
 	}
 
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("Content-Encoding", compression)
+	req.Header.Set("Accept-Encoding", compression)
 
 	start := time.Now()
 
