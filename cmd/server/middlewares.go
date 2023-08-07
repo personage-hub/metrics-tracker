@@ -12,8 +12,6 @@ import (
 	"time"
 )
 
-var zipContent []string = []string{consts.ContentTypeJSON, consts.ContentTypeHTML}
-
 type (
 	responseData struct {
 		status int

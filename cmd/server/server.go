@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	project_constants "github.com/personage-hub/metrics-tracker/internal/consts"
+	"github.com/personage-hub/metrics-tracker/internal/consts"
 	"io"
 	"net/http"
 	"strconv"
@@ -65,7 +65,7 @@ func (s *Server) updateMetricV2(res http.ResponseWriter, req *http.Request) {
 
 	data, _ := easyjson.Marshal(metric)
 	res.WriteHeader(http.StatusOK)
-	res.Header().Set("Content-Type", project_constants.ContentTypeJSON)
+	res.Header().Set("Content-Type", consts.ContentTypeJSON)
 	res.Write(data)
 }
 
