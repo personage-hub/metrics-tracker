@@ -2,8 +2,8 @@ package main
 
 import (
 	"compress/gzip"
+	"github.com/personage-hub/metrics-tracker/internal/consts"
 	"github.com/personage-hub/metrics-tracker/internal/logger"
-	"github.com/personage-hub/metrics-tracker/internal/project_constants"
 	"go.uber.org/zap"
 	"io"
 	"net/http"
@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-var zipContent []string = []string{project_constants.ContentTypeJSON, project_constants.ContentTypeHTML}
+var zipContent []string = []string{consts.ContentTypeJSON, consts.ContentTypeHTML}
 
 type (
 	responseData struct {
@@ -87,7 +87,7 @@ func (c *compressWriter) Write(p []byte) (int, error) {
 
 func (c *compressWriter) WriteHeader(statusCode int) {
 	if statusCode < 300 {
-		c.w.Header().Set("Content-Encoding", project_constants.Compression)
+		c.w.Header().Set("Content-Encoding", consts.Compression)
 	}
 	c.w.WriteHeader(statusCode)
 }

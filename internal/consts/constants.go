@@ -1,4 +1,4 @@
-package project_constants
+package consts
 
 const ContentTypeJSON string = "application/json"
 const ContentTypeHTML string = "text/html"

@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	project_constants "github.com/personage-hub/metrics-tracker/internal/project_constants"
+	project_constants "github.com/personage-hub/metrics-tracker/internal/consts"
 	"io"
 	"net/http"
 	"strconv"
