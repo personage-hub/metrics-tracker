@@ -131,6 +131,10 @@ func (c *compressReader) Close() error {
 
 func gzipMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Use-Gzip") == "false" {
+			next.ServeHTTP(w, r)
+			return
+		}
 		ow := w
 
 		acceptEncoding := r.Header.Get("Accept-Encoding")
