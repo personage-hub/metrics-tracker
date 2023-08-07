@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"compress/gzip"
 	"github.com/personage-hub/metrics-tracker/internal/consts"
 	"github.com/personage-hub/metrics-tracker/internal/logger"
@@ -16,6 +17,7 @@ type (
 	responseData struct {
 		status int
 		size   int
+		body   []byte
 	}
 	loggingResponseWriter struct {
 		http.ResponseWriter
@@ -26,6 +28,7 @@ type (
 func (r *loggingResponseWriter) Write(b []byte) (int, error) {
 	size, err := r.ResponseWriter.Write(b)
 	r.responseData.size += size
+	r.responseData.body = b
 	return size, err
 }
 
@@ -44,6 +47,8 @@ func requestWithLogging(next http.Handler) http.Handler {
 			status: 0,
 			size:   0,
 		}
+		requestBodyBytes, _ := io.ReadAll(r.Body)
+		r.Body = io.NopCloser(bytes.NewBuffer(requestBodyBytes))
 
 		logWriter := loggingResponseWriter{
 			ResponseWriter: w,
@@ -59,6 +64,8 @@ func requestWithLogging(next http.Handler) http.Handler {
 			zap.String("duration", duration.String()),
 			zap.String("size", strconv.Itoa(responseData.size)),
 			zap.String("status", strconv.Itoa(responseData.status)),
+			zap.String("request body", string(requestBodyBytes)),
+			zap.String("response body", string(responseData.body)),
 		)
 	})
 }
