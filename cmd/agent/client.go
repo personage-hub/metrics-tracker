@@ -141,19 +141,19 @@ func (mc *MonitoringClient) SendMetric(metric metrics.Metrics) error {
 	if err != nil {
 		return errors.Wrap(err, "Converting data for request")
 	}
-	compressData, err := mc.compress(data)
-	if err != nil {
-		return errors.Wrap(err, "Compress data for request")
-	}
+	//compressData, err := mc.compress(data)
+	//if err != nil {
+	//	return errors.Wrap(err, "Compress data for request")
+	//}
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(compressData))
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
 	if err != nil {
 		return errors.Wrap(err, "creating request")
 	}
 
 	req.Header.Set("Content-Type", project_constants.ContentTypeJSON)
-	req.Header.Set("Content-Encoding", project_constants.Compression)
-	req.Header.Set("Accept-Encoding", project_constants.Compression)
+	//req.Header.Set("Content-Encoding", project_constants.Compression)
+	//req.Header.Set("Accept-Encoding", project_constants.Compression)
 
 	start := time.Now()
 

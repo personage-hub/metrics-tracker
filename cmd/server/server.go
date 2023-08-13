@@ -136,7 +136,7 @@ func (s *Server) metricGetV1(writer http.ResponseWriter, request *http.Request) 
 			writer.WriteHeader(http.StatusNotFound)
 			return
 		}
-
+		writer.Header().Set("Content-Type", consts.ContentTypeHTML)
 		valueStr := fmt.Sprintf("%v", value)
 		writer.Write([]byte(valueStr))
 
@@ -171,7 +171,7 @@ func (s *Server) metricsHandle(rw http.ResponseWriter, r *http.Request) {
 		"\n" +
 		"Counter list: " +
 		strings.Join(counterList, ", ")
-
+	rw.Header().Set("Content-Type", consts.ContentTypeHTML)
 	_, _ = io.WriteString(rw, result)
 }
 
@@ -207,14 +207,14 @@ func (s *Server) metricGetV2(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	data, _ := easyjson.Marshal(metric)
-	rw.Header().Set("Content-Type", "application/json")
+	rw.Header().Set("Content-Type", consts.ContentTypeJSON)
 	rw.Write(data) // send back the retrieved metric
 }
 
 func (s *Server) Run(c Config) error {
 	r := chi.NewRouter()
 	r.Use(requestWithLogging)
-	r.Use(gzipMiddleware)
+	r.Use(gzipHandler)
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", s.metricsHandle)
 		r.Route("/value", func(r chi.Router) {
