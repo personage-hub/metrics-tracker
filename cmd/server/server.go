@@ -15,12 +15,16 @@ import (
 )
 
 type Server struct {
-	storage *storage.MemStorage
+	storage  *storage.MemStorage
+	dumper   storage.Dumper
+	syncSave bool
 }
 
-func NewServer(storage *storage.MemStorage) *Server {
+func NewServer(storage *storage.MemStorage, dumper storage.Dumper, syncSave bool) *Server {
 	return &Server{
-		storage: storage,
+		storage:  storage,
+		dumper:   dumper,
+		syncSave: syncSave,
 	}
 }
 
@@ -44,6 +48,12 @@ func (s *Server) updateMetricV2(res http.ResponseWriter, req *http.Request) {
 	case "gauge":
 		if metric.Value != nil {
 			s.storage.GaugeUpdate(metric.ID, *metric.Value)
+			if s.syncSave {
+				if err := s.dumper.SaveData(*s.storage); err != nil {
+					res.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+			}
 		} else {
 			res.WriteHeader(http.StatusBadRequest)
 			res.Write([]byte("Missing value for gauge metric"))
@@ -52,6 +62,12 @@ func (s *Server) updateMetricV2(res http.ResponseWriter, req *http.Request) {
 	case "counter":
 		if metric.Delta != nil {
 			s.storage.CounterUpdate(metric.ID, *metric.Delta)
+			if s.syncSave {
+				if err := s.dumper.SaveData(*s.storage); err != nil {
+					res.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+			}
 		} else {
 			res.WriteHeader(http.StatusBadRequest)
 			res.Write([]byte("Missing delta for counter metric"))
@@ -92,6 +108,12 @@ func (s *Server) updateMetricV1(res http.ResponseWriter, req *http.Request) {
 			return
 		}
 		s.storage.GaugeUpdate(metricName, floatValue)
+		if s.syncSave {
+			if err := s.dumper.SaveData(*s.storage); err != nil {
+				res.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+		}
 
 	case "counter":
 		intValue, err := strconv.ParseInt(metricValue, 10, 64)
@@ -101,6 +123,12 @@ func (s *Server) updateMetricV1(res http.ResponseWriter, req *http.Request) {
 			return
 		}
 		s.storage.CounterUpdate(metricName, intValue)
+		if s.syncSave {
+			if err := s.dumper.SaveData(*s.storage); err != nil {
+				res.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+		}
 
 	default:
 		res.WriteHeader(http.StatusBadRequest)
