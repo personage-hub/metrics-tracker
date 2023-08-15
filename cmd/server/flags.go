@@ -19,10 +19,7 @@ type Config struct {
 func isValidPath(path string) bool {
 	_, err := os.Open(path)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return true
-		}
-		return false
+		return os.IsNotExist(err)
 	}
 	return true
 }
