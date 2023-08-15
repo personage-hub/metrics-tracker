@@ -16,8 +16,11 @@ import (
 )
 
 func TestUpdateMetricFunc(t *testing.T) {
-	storage := storage.NewMemStorage()
-	server := NewServer(storage)
+	s := storage.NewMemStorage()
+	d := storage.DumpFile{
+		Path: "./tmp_tests/test.json",
+	}
+	server := NewServer(s, &d, false)
 	type want struct {
 		statusCode int
 	}
@@ -157,8 +160,11 @@ func TestUpdateGaugeMetricStorage(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			storage := storage.NewMemStorage()
-			server := NewServer(storage)
+			s := storage.NewMemStorage()
+			d := storage.DumpFile{
+				Path: "./tmp_tests/test.json",
+			}
+			server := NewServer(s, &d, false)
 			uri := "/update/"
 			request := httptest.NewRequest(http.MethodPost, uri, bytes.NewBuffer([]byte(tt.metric)))
 			response := httptest.NewRecorder()
@@ -172,7 +178,7 @@ func TestUpdateGaugeMetricStorage(t *testing.T) {
 			require.Equal(t, tt.want.statusCode, result.StatusCode)
 			var m metrics.Metrics
 			_ = easyjson.Unmarshal([]byte(tt.metric), &m)
-			resultValue, _ := storage.GetGaugeMetric(m.ID)
+			resultValue, _ := s.GetGaugeMetric(m.ID)
 			assert.Equal(t, *m.Value, resultValue)
 			defer result.Body.Close()
 		})
@@ -205,8 +211,11 @@ func TestUpdateCounterMetricStorage(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			storage := storage.NewMemStorage()
-			server := NewServer(storage)
+			s := storage.NewMemStorage()
+			d := storage.DumpFile{
+				Path: "./tmp_tests/test.json",
+			}
+			server := NewServer(s, &d, false)
 			uri := "/update/"
 			request := httptest.NewRequest(http.MethodPost, uri, bytes.NewBuffer([]byte(tt.metric)))
 			response := httptest.NewRecorder()
@@ -220,7 +229,7 @@ func TestUpdateCounterMetricStorage(t *testing.T) {
 			require.Equal(t, tt.want.statusCode, result.StatusCode)
 			var m metrics.Metrics
 			_ = easyjson.Unmarshal([]byte(tt.metric), &m)
-			resultValue, _ := storage.GetCounterMetric(m.ID)
+			resultValue, _ := s.GetCounterMetric(m.ID)
 			assert.Equal(t, *m.Delta, resultValue)
 			defer result.Body.Close()
 		})
