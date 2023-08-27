@@ -197,7 +197,6 @@ func (mc *MonitoringClient) StartMonitoring(ctx context.Context) {
 	}()
 
 	<-doneCh
-	return
 }
 
 func (mc *MonitoringClient) CollectMetrics() error {
