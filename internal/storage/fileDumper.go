@@ -2,9 +2,10 @@ package storage
 
 import (
 	"encoding/json"
-	"github.com/pkg/errors"
 	"os"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 type DumpFile struct {
@@ -15,7 +16,7 @@ type DumpFile struct {
 	}
 }
 
-func (file *DumpFile) SaveData(s MemStorage) error {
+func (file *DumpFile) SaveData(s Storage) error {
 	file.FileStorage.GaugeData = s.GaugeMap()
 	file.FileStorage.CounterData = s.CounterMap()
 	data, err := json.MarshalIndent(file.FileStorage, "", "  ")
@@ -28,7 +29,7 @@ func (file *DumpFile) SaveData(s MemStorage) error {
 	return nil
 }
 
-func (file *DumpFile) RestoreData(s *MemStorage) error {
+func (file *DumpFile) RestoreData(s Storage) error {
 	data, err := os.ReadFile(file.Path)
 	if err != nil {
 		return err
@@ -45,7 +46,7 @@ func (file *DumpFile) RestoreData(s *MemStorage) error {
 	return nil
 }
 
-func PeriodicSave(dumper Dumper, storage MemStorage, interval int64) error {
+func PeriodicSave(dumper Dumper, storage Storage, interval int64) error {
 	for {
 		if interval == 0 {
 			return nil

@@ -3,10 +3,11 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"fmt"
+
 	"github.com/mailru/easyjson"
-	project_constants "github.com/personage-hub/metrics-tracker/internal/consts"
-	"github.com/personage-hub/metrics-tracker/internal/logger"
+	"github.com/personage-hub/metrics-tracker/internal/consts"
 	"github.com/personage-hub/metrics-tracker/internal/metrics"
 	"github.com/personage-hub/metrics-tracker/internal/storage"
 	"github.com/pkg/errors"
@@ -20,11 +21,12 @@ import (
 type MonitoringClient struct {
 	Client        *http.Client
 	Config        Config
-	Storage       *storage.MemStorage
+	Storage       storage.Storage
 	MetricFuncMap map[string]func(*runtime.MemStats) float64
+	logger        *zap.Logger
 }
 
-func NewMonitoringClient(client *http.Client, config Config) *MonitoringClient {
+func NewMonitoringClient(client *http.Client, logger *zap.Logger, config Config) *MonitoringClient {
 	metricFuncMap := map[string]func(*runtime.MemStats) float64{
 		"Alloc": func(m *runtime.MemStats) float64 {
 			return float64(m.Alloc)
@@ -113,6 +115,7 @@ func NewMonitoringClient(client *http.Client, config Config) *MonitoringClient {
 		Config:        config,
 		Storage:       storage.NewMemStorage(),
 		MetricFuncMap: metricFuncMap,
+		logger:        logger,
 	}
 }
 
@@ -141,19 +144,13 @@ func (mc *MonitoringClient) SendMetric(metric metrics.Metrics) error {
 	if err != nil {
 		return errors.Wrap(err, "Converting data for request")
 	}
-	//compressData, err := mc.compress(data)
-	//if err != nil {
-	//	return errors.Wrap(err, "Compress data for request")
-	//}
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
 	if err != nil {
 		return errors.Wrap(err, "creating request")
 	}
 
-	req.Header.Set("Content-Type", project_constants.ContentTypeJSON)
-	//req.Header.Set("Content-Encoding", project_constants.Compression)
-	//req.Header.Set("Accept-Encoding", project_constants.Compression)
+	req.Header.Set("Content-Type", consts.ContentTypeJSON)
 
 	start := time.Now()
 
@@ -164,7 +161,7 @@ func (mc *MonitoringClient) SendMetric(metric metrics.Metrics) error {
 	defer resp.Body.Close()
 
 	duration := time.Since(start)
-	logger.Log.Info(
+	mc.logger.Info(
 		"HTTP request sent",
 		zap.String("method", req.Method),
 		zap.String("url", req.URL.String()),
@@ -177,30 +174,40 @@ func (mc *MonitoringClient) SendMetric(metric metrics.Metrics) error {
 	return nil
 }
 
-func (mc *MonitoringClient) StartMonitoring() error {
+func (mc *MonitoringClient) StartMonitoring(ctx context.Context) {
 	tickerPoll := time.NewTicker(mc.Config.PollInterval)
 	tickerReport := time.NewTicker(mc.Config.ReportInterval)
 	defer tickerPoll.Stop()
 	defer tickerReport.Stop()
 
-	for {
-		select {
-		case <-tickerPoll.C:
-			_ = mc.CollectMetrics()
-		case <-tickerReport.C:
-			_ = mc.StartReporting()
+	doneCh := make(chan bool)
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				close(doneCh)
+				return
+			case <-tickerPoll.C:
+				_ = mc.CollectMetrics()
+			case <-tickerReport.C:
+				_ = mc.StartReporting()
+			}
 		}
-	}
+	}()
+
+	<-doneCh
+	return
 }
 
 func (mc *MonitoringClient) CollectMetrics() error {
 	mc.Storage.GaugeUpdate("RandomValue", rand.Float64())
 
-	var metrics runtime.MemStats
-	runtime.ReadMemStats(&metrics)
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
 
 	for metricName, metricFunc := range mc.MetricFuncMap {
-		value := metricFunc(&metrics)
+		value := metricFunc(&m)
 		mc.Storage.GaugeUpdate(metricName, value)
 	}
 	mc.Storage.CounterUpdate("PollCount", 1)

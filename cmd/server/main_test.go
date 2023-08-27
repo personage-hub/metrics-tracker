@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/personage-hub/metrics-tracker/internal/logger"
+	"testing"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/mailru/easyjson"
 	"github.com/personage-hub/metrics-tracker/internal/metrics"
@@ -12,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
-	"testing"
 )
 
 func TestUpdateMetricFunc(t *testing.T) {
@@ -20,7 +22,8 @@ func TestUpdateMetricFunc(t *testing.T) {
 	d := storage.DumpFile{
 		Path: "./tmp_tests/test.json",
 	}
-	server := NewServer(s, &d, false)
+	log, _ := logger.Initialize("info")
+	server := NewServer(s, &d, false, log)
 	type want struct {
 		statusCode int
 	}
@@ -60,21 +63,6 @@ func TestUpdateMetricFunc(t *testing.T) {
 			},
 		},
 		{
-			name:    "Fail Update gauge Method get not allowed",
-			request: "/update",
-			server:  server,
-			method:  http.MethodGet,
-			metric: metrics.Metrics{
-				ID:    "someMetric",
-				MType: "gauge",
-				Value: func() *float64 { v := 543.01; return &v }(),
-			},
-
-			want: want{
-				statusCode: http.StatusMethodNotAllowed,
-			},
-		},
-		{
 			name:    "Success Counter gauge value",
 			request: "/update",
 			server:  server,
@@ -101,20 +89,6 @@ func TestUpdateMetricFunc(t *testing.T) {
 				statusCode: http.StatusBadRequest,
 			},
 		},
-		{
-			name:    "Fail Update Counter Method get not allowed",
-			request: "/update",
-			server:  server,
-			metric: metrics.Metrics{
-				ID:    "someMetric",
-				MType: "counter",
-				Delta: func() *int64 { v := int64(5456); return &v }(),
-			},
-			method: http.MethodGet,
-			want: want{
-				statusCode: http.StatusMethodNotAllowed,
-			},
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -125,7 +99,7 @@ func TestUpdateMetricFunc(t *testing.T) {
 			ctx := context.WithValue(request.Context(), chi.RouteCtxKey, chi.NewRouteContext())
 			request = request.WithContext(ctx)
 
-			server.updateMetricV2(response, request)
+			server.updateMetricJSON(response, request)
 			result := response.Result()
 			assert.Equal(t, tt.want.statusCode, result.StatusCode)
 			defer result.Body.Close()
@@ -164,7 +138,8 @@ func TestUpdateGaugeMetricStorage(t *testing.T) {
 			d := storage.DumpFile{
 				Path: "./tmp_tests/test.json",
 			}
-			server := NewServer(s, &d, false)
+			log, _ := logger.Initialize("info")
+			server := NewServer(s, &d, false, log)
 			uri := "/update/"
 			request := httptest.NewRequest(http.MethodPost, uri, bytes.NewBuffer([]byte(tt.metric)))
 			response := httptest.NewRecorder()
@@ -173,7 +148,7 @@ func TestUpdateGaugeMetricStorage(t *testing.T) {
 
 			request = request.WithContext(ctx)
 
-			server.updateMetricV2(response, request)
+			server.updateMetricJSON(response, request)
 			result := response.Result()
 			require.Equal(t, tt.want.statusCode, result.StatusCode)
 			var m metrics.Metrics
@@ -215,7 +190,8 @@ func TestUpdateCounterMetricStorage(t *testing.T) {
 			d := storage.DumpFile{
 				Path: "./tmp_tests/test.json",
 			}
-			server := NewServer(s, &d, false)
+			log, _ := logger.Initialize("info")
+			server := NewServer(s, &d, false, log)
 			uri := "/update/"
 			request := httptest.NewRequest(http.MethodPost, uri, bytes.NewBuffer([]byte(tt.metric)))
 			response := httptest.NewRecorder()
@@ -224,7 +200,7 @@ func TestUpdateCounterMetricStorage(t *testing.T) {
 
 			request = request.WithContext(ctx)
 
-			server.updateMetricV2(response, request)
+			server.updateMetricJSON(response, request)
 			result := response.Result()
 			require.Equal(t, tt.want.statusCode, result.StatusCode)
 			var m metrics.Metrics

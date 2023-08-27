@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/personage-hub/metrics-tracker/internal/consts"
+	"go.uber.org/zap"
 	"io"
 	"net/http"
 	"strconv"
@@ -15,26 +16,22 @@ import (
 )
 
 type Server struct {
-	storage  *storage.MemStorage
+	storage  storage.Storage
 	dumper   storage.Dumper
 	syncSave bool
+	logger   *zap.Logger
 }
 
-func NewServer(storage *storage.MemStorage, dumper storage.Dumper, syncSave bool) *Server {
+func NewServer(storage storage.Storage, dumper storage.Dumper, syncSave bool, logger *zap.Logger) *Server {
 	return &Server{
 		storage:  storage,
 		dumper:   dumper,
 		syncSave: syncSave,
+		logger:   logger,
 	}
 }
 
-func (s *Server) updateMetricV2(res http.ResponseWriter, req *http.Request) {
-	if req.Method != http.MethodPost {
-		res.WriteHeader(http.StatusMethodNotAllowed)
-		res.Write([]byte("Method not allowed"))
-		return
-	}
-
+func (s *Server) updateMetricJSON(res http.ResponseWriter, req *http.Request) {
 	var metric metrics.Metrics
 
 	err := easyjson.UnmarshalFromReader(req.Body, &metric)
@@ -49,7 +46,7 @@ func (s *Server) updateMetricV2(res http.ResponseWriter, req *http.Request) {
 		if metric.Value != nil {
 			s.storage.GaugeUpdate(metric.ID, *metric.Value)
 			if s.syncSave {
-				if err := s.dumper.SaveData(*s.storage); err != nil {
+				if err := s.dumper.SaveData(s.storage); err != nil {
 					res.WriteHeader(http.StatusInternalServerError)
 					return
 				}
@@ -63,7 +60,7 @@ func (s *Server) updateMetricV2(res http.ResponseWriter, req *http.Request) {
 		if metric.Delta != nil {
 			s.storage.CounterUpdate(metric.ID, *metric.Delta)
 			if s.syncSave {
-				if err := s.dumper.SaveData(*s.storage); err != nil {
+				if err := s.dumper.SaveData(s.storage); err != nil {
 					res.WriteHeader(http.StatusInternalServerError)
 					return
 				}
@@ -85,12 +82,7 @@ func (s *Server) updateMetricV2(res http.ResponseWriter, req *http.Request) {
 	res.Write(data)
 }
 
-func (s *Server) updateMetricV1(res http.ResponseWriter, req *http.Request) {
-	if req.Method != http.MethodPost {
-		res.WriteHeader(http.StatusMethodNotAllowed)
-		res.Write([]byte("Method not allowed"))
-		return
-	}
+func (s *Server) updateMetric(res http.ResponseWriter, req *http.Request) {
 	metricType := strings.ToLower(chi.URLParam(req, "metricType"))
 	metricName := chi.URLParam(req, "metricName")
 	metricValue := chi.URLParam(req, "metricValue")
@@ -109,7 +101,7 @@ func (s *Server) updateMetricV1(res http.ResponseWriter, req *http.Request) {
 		}
 		s.storage.GaugeUpdate(metricName, floatValue)
 		if s.syncSave {
-			if err := s.dumper.SaveData(*s.storage); err != nil {
+			if err := s.dumper.SaveData(s.storage); err != nil {
 				res.WriteHeader(http.StatusInternalServerError)
 				return
 			}
@@ -124,7 +116,7 @@ func (s *Server) updateMetricV1(res http.ResponseWriter, req *http.Request) {
 		}
 		s.storage.CounterUpdate(metricName, intValue)
 		if s.syncSave {
-			if err := s.dumper.SaveData(*s.storage); err != nil {
+			if err := s.dumper.SaveData(s.storage); err != nil {
 				res.WriteHeader(http.StatusInternalServerError)
 				return
 			}
@@ -138,7 +130,7 @@ func (s *Server) updateMetricV1(res http.ResponseWriter, req *http.Request) {
 	res.WriteHeader(http.StatusOK)
 }
 
-func (s *Server) metricGetV1(writer http.ResponseWriter, request *http.Request) {
+func (s *Server) metricGet(writer http.ResponseWriter, request *http.Request) {
 	metricType := strings.ToLower(chi.URLParam(request, "metricType"))
 	metricName := chi.URLParam(request, "metricName")
 
@@ -203,7 +195,7 @@ func (s *Server) metricsHandle(rw http.ResponseWriter, r *http.Request) {
 	_, _ = io.WriteString(rw, result)
 }
 
-func (s *Server) metricGetV2(rw http.ResponseWriter, r *http.Request) {
+func (s *Server) metricGetJSON(rw http.ResponseWriter, r *http.Request) {
 	var metric metrics.Metrics
 	err := easyjson.UnmarshalFromReader(r.Body, &metric)
 	if err != nil {
@@ -241,20 +233,14 @@ func (s *Server) metricGetV2(rw http.ResponseWriter, r *http.Request) {
 
 func (s *Server) Run(c Config) error {
 	r := chi.NewRouter()
-	r.Use(requestWithLogging)
+	r.Use(requestWithLogging(s.logger))
 	r.Use(gzipHandler)
-	r.Route("/", func(r chi.Router) {
-		r.Get("/", s.metricsHandle)
-		r.Route("/value", func(r chi.Router) {
-			r.Route("/{metricType}", func(r chi.Router) {
-				r.Get("/{metricName}", s.metricGetV1)
-			})
-		})
-	})
 
-	r.Post("/update/{metricType}/{metricName}/{metricValue}", s.updateMetricV1)
-	r.Post("/update/", s.updateMetricV2)
-	r.Post("/value/", s.metricGetV2)
+	r.Get("/", s.metricsHandle)
+	r.Get("/value/{metricType}/{metricName}", s.metricGet)
+	r.Post("/update/{metricType}/{metricName}/{metricValue}", s.updateMetric)
+	r.Post("/update/", s.updateMetricJSON)
+	r.Post("/value/", s.metricGetJSON)
 
 	return http.ListenAndServe(c.ServerAddress, r)
 }

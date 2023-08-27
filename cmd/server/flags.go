@@ -3,9 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/pkg/errors"
 	"os"
 	"strconv"
+
+	"github.com/pkg/errors"
 )
 
 type Config struct {

@@ -4,6 +4,15 @@ import (
 	"github.com/cornelk/hashmap"
 )
 
+type Storage interface {
+	GaugeUpdate(key string, value float64)
+	CounterUpdate(key string, value int64)
+	GaugeMap() map[string]float64
+	CounterMap() map[string]int64
+	GetGaugeMetric(metricName string) (float64, bool)
+	GetCounterMetric(metricName string) (int64, bool)
+}
+
 type MemStorage struct {
 	gauge   *hashmap.Map[string, float64]
 	counter *hashmap.Map[string, int64]

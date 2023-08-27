@@ -1,6 +1,6 @@
 package storage
 
 type Dumper interface {
-	SaveData(s MemStorage) error
-	RestoreData(s *MemStorage) error
+	SaveData(s Storage) error
+	RestoreData(s Storage) error
 }
