@@ -231,16 +231,12 @@ func (s *Server) metricGetJSON(rw http.ResponseWriter, r *http.Request) {
 	rw.Write(data) // send back the retrieved metric
 }
 
-func (s *Server) Run(c Config) error {
+func (s *Server) MetricRoute() *chi.Mux {
 	r := chi.NewRouter()
-	r.Use(requestWithLogging(s.logger))
-	r.Use(gzipHandler)
-
 	r.Get("/", s.metricsHandle)
 	r.Get("/value/{metricType}/{metricName}", s.metricGet)
 	r.Post("/update/{metricType}/{metricName}/{metricValue}", s.updateMetric)
 	r.Post("/update/", s.updateMetricJSON)
 	r.Post("/value/", s.metricGetJSON)
-
-	return http.ListenAndServe(c.ServerAddress, r)
+	return r
 }

@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"github.com/go-chi/chi/v5"
+	"net/http"
 	"os"
 
 	"github.com/personage-hub/metrics-tracker/internal/logger"
@@ -39,7 +42,15 @@ func main() {
 
 	log.Info("Running server", zap.String("address", config.ServerAddress))
 	server := NewServer(s, &d, syncSave, log)
-	if err := server.Run(config); err != nil {
-		panic(err)
+	r := chi.NewRouter()
+	r.Use(requestWithLogging(server.logger))
+	r.Use(gzipHandler)
+	r.Mount("/", server.MetricRoute())
+
+	err = http.ListenAndServe(config.ServerAddress, r)
+
+	if err != nil {
+		fmt.Printf("Error in server: #{err}")
 	}
+
 }
