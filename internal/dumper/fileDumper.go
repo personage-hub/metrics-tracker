@@ -1,11 +1,11 @@
-package storage
+package dumper
 
 import (
 	"encoding/json"
+	"fmt"
+	"github.com/personage-hub/metrics-tracker/internal/storage"
 	"os"
 	"time"
-
-	"github.com/pkg/errors"
 )
 
 type DumpFile struct {
@@ -16,7 +16,13 @@ type DumpFile struct {
 	}
 }
 
-func (file *DumpFile) SaveData(s Storage) error {
+func NewDumper(path string) *DumpFile {
+	return &DumpFile{
+		Path: path,
+	}
+}
+
+func (file *DumpFile) SaveData(s storage.Storage) error {
 	file.FileStorage.GaugeData = s.GaugeMap()
 	file.FileStorage.CounterData = s.CounterMap()
 	data, err := json.MarshalIndent(file.FileStorage, "", "  ")
@@ -29,7 +35,7 @@ func (file *DumpFile) SaveData(s Storage) error {
 	return nil
 }
 
-func (file *DumpFile) RestoreData(s Storage) error {
+func (file *DumpFile) RestoreData(s storage.Storage) error {
 	data, err := os.ReadFile(file.Path)
 	if err != nil {
 		return err
@@ -46,7 +52,7 @@ func (file *DumpFile) RestoreData(s Storage) error {
 	return nil
 }
 
-func PeriodicSave(dumper Dumper, storage Storage, interval int64) error {
+func PeriodicSave(dumper Dumper, storage storage.Storage, interval int64) error {
 	for {
 		if interval == 0 {
 			return nil
@@ -55,7 +61,7 @@ func PeriodicSave(dumper Dumper, storage Storage, interval int64) error {
 		time.Sleep(time.Duration(interval) * time.Second)
 
 		if err := dumper.SaveData(storage); err != nil {
-			return errors.Wrap(err, "Failed to dump data")
+			return fmt.Errorf("failed to dump data: %w", err)
 		}
 	}
 }

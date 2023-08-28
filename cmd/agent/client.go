@@ -10,7 +10,6 @@ import (
 	"github.com/personage-hub/metrics-tracker/internal/consts"
 	"github.com/personage-hub/metrics-tracker/internal/metrics"
 	"github.com/personage-hub/metrics-tracker/internal/storage"
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"math/rand"
 	"net/http"
@@ -123,15 +122,15 @@ func (mc *MonitoringClient) compress(data []byte) ([]byte, error) {
 	var b bytes.Buffer
 	gzw, err := gzip.NewWriterLevel(&b, gzip.BestCompression)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed init compress writer.")
+		return nil, fmt.Errorf("failed init compress writer: %w", err)
 	}
 
 	if _, err = gzw.Write(data); err != nil {
-		return nil, errors.Wrap(err, "failed to write compress data to buffer.")
+		return nil, fmt.Errorf("failed to write compress data to buffer: %w", err)
 	}
 
 	if err = gzw.Close(); err != nil {
-		return nil, errors.Wrap(err, "failed to close compress writer.")
+		return nil, fmt.Errorf("failed to close compress writer: %w", err)
 	}
 
 	return b.Bytes(), nil
@@ -142,12 +141,12 @@ func (mc *MonitoringClient) SendMetric(metric metrics.Metrics) error {
 
 	data, err := easyjson.Marshal(metric)
 	if err != nil {
-		return errors.Wrap(err, "Converting data for request")
+		return fmt.Errorf("failed converting data for request: %w", err)
 	}
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
 	if err != nil {
-		return errors.Wrap(err, "creating request")
+		return fmt.Errorf("failed creating request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", consts.ContentTypeJSON)
@@ -156,7 +155,7 @@ func (mc *MonitoringClient) SendMetric(metric metrics.Metrics) error {
 
 	resp, err := mc.Client.Do(req)
 	if err != nil {
-		return errors.Wrap(err, "sending metric")
+		return fmt.Errorf("failed send metric: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -169,7 +168,7 @@ func (mc *MonitoringClient) SendMetric(metric metrics.Metrics) error {
 		zap.String("duration", duration.String()),
 	)
 
-	fmt.Println("Response:", resp.Status)
+	mc.logger.Info("Response:", zap.Int("status", resp.StatusCode))
 
 	return nil
 }
@@ -223,7 +222,7 @@ func (mc *MonitoringClient) UpdateGaugeMetrics() error {
 		}
 		err := mc.SendMetric(m)
 		if err != nil {
-			return errors.Wrap(err, "sending gauge metric")
+			return fmt.Errorf("error sending gauge metric: %w", err)
 		}
 	}
 	return nil
@@ -238,14 +237,14 @@ func (mc *MonitoringClient) UpdateCounterMetrics() error {
 		}
 		err := mc.SendMetric(m)
 		if err != nil {
-			return errors.Wrap(err, "sending counter metric")
+			return fmt.Errorf("error sending counter metric: %w", err)
 		}
 	}
 	return nil
 }
 
 func (mc *MonitoringClient) StartReporting() error {
-	fmt.Println("Reporting metrics to server...")
+	mc.logger.Info("Reporting metrics to server...")
 	_ = mc.UpdateGaugeMetrics()
 	_ = mc.UpdateCounterMetrics()
 	return nil

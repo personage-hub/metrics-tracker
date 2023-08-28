@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -40,7 +39,7 @@ func main() {
 
 	go func() {
 		sig := <-sigCh
-		fmt.Println("Received signal:", sig)
+		log.Info("Received signal", zap.String("signal", sig.String()))
 		cancel()
 	}()
 	wg.Wait()

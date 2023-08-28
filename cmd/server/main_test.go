@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/personage-hub/metrics-tracker/internal/dumper"
 	"github.com/personage-hub/metrics-tracker/internal/logger"
 	"testing"
 
@@ -19,7 +20,7 @@ import (
 
 func TestUpdateMetricFunc(t *testing.T) {
 	s := storage.NewMemStorage()
-	d := storage.DumpFile{
+	d := dumper.DumpFile{
 		Path: "./tmp_tests/test.json",
 	}
 	log, _ := logger.Initialize("info")
@@ -135,7 +136,7 @@ func TestUpdateGaugeMetricStorage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := storage.NewMemStorage()
-			d := storage.DumpFile{
+			d := dumper.DumpFile{
 				Path: "./tmp_tests/test.json",
 			}
 			log, _ := logger.Initialize("info")
@@ -187,7 +188,7 @@ func TestUpdateCounterMetricStorage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := storage.NewMemStorage()
-			d := storage.DumpFile{
+			d := dumper.DumpFile{
 				Path: "./tmp_tests/test.json",
 			}
 			log, _ := logger.Initialize("info")

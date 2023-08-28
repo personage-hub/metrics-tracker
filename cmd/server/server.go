@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/personage-hub/metrics-tracker/internal/consts"
+	"github.com/personage-hub/metrics-tracker/internal/dumper"
 	"go.uber.org/zap"
 	"io"
 	"net/http"
@@ -17,12 +18,12 @@ import (
 
 type Server struct {
 	storage  storage.Storage
-	dumper   storage.Dumper
+	dumper   dumper.Dumper
 	syncSave bool
 	logger   *zap.Logger
 }
 
-func NewServer(storage storage.Storage, dumper storage.Dumper, syncSave bool, logger *zap.Logger) *Server {
+func NewServer(storage storage.Storage, dumper dumper.Dumper, syncSave bool, logger *zap.Logger) *Server {
 	return &Server{
 		storage:  storage,
 		dumper:   dumper,
