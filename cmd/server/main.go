@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 	"os"
 
@@ -13,12 +12,7 @@ import (
 )
 
 func main() {
-	config, err := parseFlags()
-
-	if err != nil {
-		fmt.Printf("Fail parse flags: %v", err)
-	}
-
+	config := parseFlags()
 	l, err := logger.Initialize(config.FlagLogLevel)
 	if err != nil {
 		panic(err)

@@ -23,7 +23,7 @@ func isValidPath(path string) bool {
 	return true
 }
 
-func parseFlags() (Config, error) {
+func parseFlags() Config {
 	var config Config
 	flag.StringVar(
 		&config.ServerAddress,
@@ -64,7 +64,7 @@ func parseFlags() (Config, error) {
 	if envValue := os.Getenv("STORE_INTERVAL"); envValue != "" {
 		val, err := strconv.ParseInt(envValue, 10, 64)
 		if err == nil {
-			return Config{}, fmt.Errorf("failed parse interval value: %w", err)
+			fmt.Errorf("failed parse interval value: %w", err)
 		}
 		config.StoreInterval = val
 	}
@@ -76,9 +76,9 @@ func parseFlags() (Config, error) {
 	if envValue := os.Getenv("RESTORE"); envValue != "" {
 		boolValue, err := strconv.ParseBool(envValue)
 		if err != nil {
-			return Config{}, fmt.Errorf("failed parse restore flag: %w", err)
+			fmt.Errorf("failed parse restore flag: %w", err)
 		}
 		config.Restore = boolValue
 	}
-	return config, nil
+	return config
 }
