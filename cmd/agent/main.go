@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 
 	"github.com/personage-hub/metrics-tracker/internal/logger"
@@ -26,22 +25,14 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	go func() {
-		defer wg.Done()
-		go mc.StartMonitoring(ctx)
-	}()
+	go mc.StartMonitoring(ctx)
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
-	go func() {
-		sig := <-sigCh
+	select {
+	case sig := <-sigCh:
 		log.Info("Received signal", zap.String("signal", sig.String()))
 		cancel()
-	}()
-	wg.Wait()
-	<-sigCh
+	}
 }
