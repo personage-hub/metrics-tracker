@@ -13,7 +13,7 @@ import (
 
 func main() {
 	config := parseFlags()
-	l, err := logger.Initialize(config.FlagLogLevel)
+	log, err := logger.Initialize(config.FlagLogLevel)
 	if err != nil {
 		panic(err)
 	}
@@ -22,10 +22,10 @@ func main() {
 	d := dumper.NewDumper(config.FileStorage)
 
 	if _, err := os.Stat(config.FileStorage); os.IsNotExist(err) {
-		l.Warn("File does not exist, skipping restore.")
+		log.Warn("File does not exist, skipping restore.")
 	} else {
 		if err := d.RestoreData(s); err != nil {
-			l.Fatal("Fail restore data from dump", zap.Error(err))
+			log.Fatal("Fail restore data from dump", zap.Error(err))
 		}
 	}
 
@@ -34,13 +34,13 @@ func main() {
 		go func() {
 			err := dumper.PeriodicSave(d, s, config.StoreInterval)
 			if err != nil {
-				l.Fatal("Fail saving data to dump", zap.Error(err))
+				log.Fatal("Fail saving data to dump", zap.Error(err))
 			}
 		}()
 	}
 
-	l.Info("Running server", zap.String("address", config.ServerAddress))
-	server := NewServer(s, d, syncSave, l)
+	log.Info("Running server", zap.String("address", config.ServerAddress))
+	server := NewServer(s, d, syncSave, log)
 	r := chi.NewRouter()
 	r.Use(requestWithLogging(server.logger))
 	r.Use(gzipHandler)
@@ -49,7 +49,7 @@ func main() {
 	err = http.ListenAndServe(config.ServerAddress, r)
 
 	if err != nil {
-		l.Fatal("Error in server:", zap.Error(err))
+		log.Fatal("Error in server:", zap.Error(err))
 	}
 
 }
