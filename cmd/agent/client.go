@@ -17,103 +17,24 @@ import (
 	"time"
 )
 
+type metric struct {
+	metricValue float64
+	metricType  string
+}
+
 type MonitoringClient struct {
 	Client        *http.Client
 	Config        Config
 	Storage       storage.Storage
-	MetricFuncMap map[string]func(*runtime.MemStats) float64
+	metricStorage chan map[string]metric
 	logger        *zap.Logger
 }
 
 func NewMonitoringClient(client *http.Client, logger *zap.Logger, config Config) *MonitoringClient {
-	metricFuncMap := map[string]func(*runtime.MemStats) float64{
-		"Alloc": func(m *runtime.MemStats) float64 {
-			return float64(m.Alloc)
-		},
-		"BuckHashSys": func(m *runtime.MemStats) float64 {
-			return float64(m.BuckHashSys)
-		},
-		"Frees": func(m *runtime.MemStats) float64 {
-			return float64(m.Frees)
-		},
-		"GCCPUFraction": func(m *runtime.MemStats) float64 {
-			return m.GCCPUFraction
-		},
-		"GCSys": func(m *runtime.MemStats) float64 {
-			return float64(m.GCSys)
-		},
-		"HeapAlloc": func(m *runtime.MemStats) float64 {
-			return float64(m.HeapAlloc)
-		},
-		"HeapIdle": func(m *runtime.MemStats) float64 {
-			return float64(m.HeapIdle)
-		},
-		"HeapInuse": func(m *runtime.MemStats) float64 {
-			return float64(m.HeapInuse)
-		},
-		"HeapObjects": func(m *runtime.MemStats) float64 {
-			return float64(m.HeapObjects)
-		},
-		"HeapReleased": func(m *runtime.MemStats) float64 {
-			return float64(m.HeapReleased)
-		},
-		"HeapSys": func(m *runtime.MemStats) float64 {
-			return float64(m.HeapSys)
-		},
-		"LastGC": func(m *runtime.MemStats) float64 {
-			return float64(m.LastGC)
-		},
-		"Lookups": func(m *runtime.MemStats) float64 {
-			return float64(m.Lookups)
-		},
-		"MCacheInuse": func(m *runtime.MemStats) float64 {
-			return float64(m.MCacheInuse)
-		},
-		"MCacheSys": func(m *runtime.MemStats) float64 {
-			return float64(m.MCacheSys)
-		},
-		"MSpanInuse": func(m *runtime.MemStats) float64 {
-			return float64(m.MSpanInuse)
-		},
-		"MSpanSys": func(m *runtime.MemStats) float64 {
-			return float64(m.MSpanSys)
-		},
-		"Mallocs": func(m *runtime.MemStats) float64 {
-			return float64(m.Mallocs)
-		},
-		"NextGC": func(m *runtime.MemStats) float64 {
-			return float64(m.NextGC)
-		},
-		"NumForcedGC": func(m *runtime.MemStats) float64 {
-			return float64(m.NumForcedGC)
-		},
-		"NumGC": func(m *runtime.MemStats) float64 {
-			return float64(m.NumGC)
-		},
-		"OtherSys": func(m *runtime.MemStats) float64 {
-			return float64(m.OtherSys)
-		},
-		"PauseTotalNs": func(m *runtime.MemStats) float64 {
-			return float64(m.PauseTotalNs)
-		},
-		"StackInuse": func(m *runtime.MemStats) float64 {
-			return float64(m.StackInuse)
-		},
-		"StackSys": func(m *runtime.MemStats) float64 {
-			return float64(m.StackSys)
-		},
-		"Sys": func(m *runtime.MemStats) float64 {
-			return float64(m.Sys)
-		},
-		"TotalAlloc": func(m *runtime.MemStats) float64 {
-			return float64(m.TotalAlloc)
-		},
-	}
 	return &MonitoringClient{
 		Client:        client,
 		Config:        config,
-		Storage:       storage.NewMemStorage(),
-		MetricFuncMap: metricFuncMap,
+		metricStorage: make(chan map[string]metric, 1),
 		logger:        logger,
 	}
 }
@@ -179,73 +100,95 @@ func (mc *MonitoringClient) StartMonitoring(ctx context.Context) {
 	defer tickerPoll.Stop()
 	defer tickerReport.Stop()
 
-	doneCh := make(chan bool)
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				close(doneCh)
-				return
-			case <-tickerPoll.C:
-				_ = mc.CollectMetrics()
-			case <-tickerReport.C:
-				_ = mc.StartReporting()
-			}
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-tickerPoll.C:
+			mc.CollectMetrics()
+		case <-tickerReport.C:
+			mc.StartReporting()
 		}
-	}()
-
-	<-doneCh
+	}
 }
 
-func (mc *MonitoringClient) CollectMetrics() error {
-	mc.Storage.GaugeUpdate("RandomValue", rand.Float64())
-
+func (mc *MonitoringClient) CollectMetrics() {
+	mc.logger.Info("starting collecting metrics")
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
-	for metricName, metricFunc := range mc.MetricFuncMap {
-		value := metricFunc(&m)
-		mc.Storage.GaugeUpdate(metricName, value)
-	}
-	mc.Storage.CounterUpdate("PollCount", 1)
+	var metStorage map[string]metric
 
-	return nil
+	if len(mc.metricStorage) == 0 {
+		metStorage = make(map[string]metric)
+	} else {
+		metStorage = <-mc.metricStorage
+	}
+
+	metStorage["Alloc"] = metric{metricValue: float64(m.Alloc), metricType: "gauge"}
+	metStorage["BuckHashSys"] = metric{metricValue: float64(m.BuckHashSys), metricType: "gauge"}
+	metStorage["Frees"] = metric{metricValue: float64(m.Frees), metricType: "gauge"}
+	metStorage["GCCPUFraction"] = metric{metricValue: m.GCCPUFraction, metricType: "gauge"}
+	metStorage["GCSys"] = metric{metricValue: float64(m.GCSys), metricType: "gauge"}
+	metStorage["HeapAlloc"] = metric{metricValue: float64(m.HeapAlloc), metricType: "gauge"}
+	metStorage["HeapIdle"] = metric{metricValue: float64(m.HeapIdle), metricType: "gauge"}
+	metStorage["HeapInuse"] = metric{metricValue: float64(m.HeapInuse), metricType: "gauge"}
+	metStorage["HeapObjects"] = metric{metricValue: float64(m.HeapObjects), metricType: "gauge"}
+	metStorage["HeapReleased"] = metric{metricValue: float64(m.HeapReleased), metricType: "gauge"}
+	metStorage["HeapSys"] = metric{metricValue: float64(m.HeapSys), metricType: "gauge"}
+	metStorage["LastGC"] = metric{metricValue: float64(m.LastGC), metricType: "gauge"}
+	metStorage["Lookups"] = metric{metricValue: float64(m.Lookups), metricType: "gauge"}
+	metStorage["MCacheInuse"] = metric{metricValue: float64(m.MCacheInuse), metricType: "gauge"}
+	metStorage["MCacheSys"] = metric{metricValue: float64(m.MCacheSys), metricType: "gauge"}
+	metStorage["MSpanInuse"] = metric{metricValue: float64(m.MSpanInuse), metricType: "gauge"}
+	metStorage["MSpanSys"] = metric{metricValue: float64(m.MSpanSys), metricType: "gauge"}
+	metStorage["Mallocs"] = metric{metricValue: float64(m.Mallocs), metricType: "gauge"}
+	metStorage["NextGC"] = metric{metricValue: float64(m.NextGC), metricType: "gauge"}
+	metStorage["NumForcedGC"] = metric{metricValue: float64(m.NumForcedGC), metricType: "gauge"}
+	metStorage["NumGC"] = metric{metricValue: float64(m.NumGC), metricType: "gauge"}
+	metStorage["OtherSys"] = metric{metricValue: float64(m.OtherSys), metricType: "gauge"}
+	metStorage["PauseTotalNs"] = metric{metricValue: float64(m.PauseTotalNs), metricType: "gauge"}
+	metStorage["StackInuse"] = metric{metricValue: float64(m.StackInuse), metricType: "gauge"}
+	metStorage["StackSys"] = metric{metricValue: float64(m.StackSys), metricType: "gauge"}
+	metStorage["Sys"] = metric{metricValue: float64(m.Sys), metricType: "gauge"}
+	metStorage["TotalAlloc"] = metric{metricValue: float64(m.TotalAlloc), metricType: "gauge"}
+	metStorage["RandomValue"] = metric{metricValue: rand.Float64(), metricType: "gauge"}
+
+	pollCount, ok := metStorage["PollCount"]
+	if !ok {
+		metStorage["PollCount"] = metric{metricValue: float64(1), metricType: "counter"}
+	} else {
+		pollCount.metricValue += float64(1)
+		metStorage["PollCount"] = pollCount
+	}
+
+	mc.metricStorage <- metStorage
+	mc.logger.Info("finish collecting metrics")
 }
 
-func (mc *MonitoringClient) UpdateGaugeMetrics() error {
-	for metricName, metricValue := range mc.Storage.GaugeMap() {
-		m := metrics.Metrics{
-			ID:    metricName,
-			MType: "gauge",
-			Value: &metricValue,
-		}
-		err := mc.SendMetric(m)
-		if err != nil {
-			return fmt.Errorf("error sending gauge metric: %w", err)
-		}
-	}
-	return nil
-}
-
-func (mc *MonitoringClient) UpdateCounterMetrics() error {
-	for metricName, metricValue := range mc.Storage.CounterMap() {
-		m := metrics.Metrics{
-			ID:    metricName,
-			MType: "counter",
-			Delta: &metricValue,
-		}
-		err := mc.SendMetric(m)
-		if err != nil {
-			return fmt.Errorf("error sending counter metric: %w", err)
-		}
-	}
-	return nil
-}
-
-func (mc *MonitoringClient) StartReporting() error {
+func (mc *MonitoringClient) StartReporting() {
 	mc.logger.Info("Reporting metrics to server...")
-	_ = mc.UpdateGaugeMetrics()
-	_ = mc.UpdateCounterMetrics()
-	return nil
+	metStorage := <-mc.metricStorage
+	for metricName, currentMetric := range metStorage {
+		m := metrics.Metrics{
+			ID:    metricName,
+			MType: currentMetric.metricType,
+		}
+		switch currentMetric.metricType {
+		case "gauge":
+			{
+				m.Value = &currentMetric.metricValue
+			}
+		case "counter":
+			{
+				v := int64(currentMetric.metricValue)
+				m.Delta = &v
+			}
+
+		}
+		err := mc.SendMetric(m)
+		if err != nil {
+			mc.logger.Error("error sending gauge metric: %w", zap.Error(err))
+		}
+	}
 }
