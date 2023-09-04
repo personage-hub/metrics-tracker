@@ -1,14 +1,13 @@
 package main
 
 import (
-	"net/http"
-	"os"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/personage-hub/metrics-tracker/internal/dumper"
 	"github.com/personage-hub/metrics-tracker/internal/logger"
+	"github.com/personage-hub/metrics-tracker/internal/middlewares"
 	"github.com/personage-hub/metrics-tracker/internal/storage"
 	"go.uber.org/zap"
+	"net/http"
 )
 
 func main() {
@@ -17,33 +16,24 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	syncSave := config.StoreInterval == 0
 
-	s := storage.NewMemStorage()
 	d := dumper.NewDumper(config.FileStorage)
+	s, err := storage.NewMemStorage(d, config.Restore, syncSave)
 
-	if _, err := os.Stat(config.FileStorage); os.IsNotExist(err) {
-		log.Warn("File does not exist, skipping restore.")
-	} else {
-		if err := d.RestoreData(s); err != nil {
-			log.Fatal("Fail restore data from dump", zap.Error(err))
-		}
+	if err != nil {
+		panic(err)
 	}
 
-	syncSave := config.StoreInterval == 0
 	if !syncSave {
-		go func() {
-			err := dumper.PeriodicSave(d, s, config.StoreInterval)
-			if err != nil {
-				log.Fatal("Fail saving data to dump", zap.Error(err))
-			}
-		}()
+		s.PeriodicSave(config.StoreInterval)
 	}
 
 	log.Info("Running server", zap.String("address", config.ServerAddress))
-	server := NewServer(s, d, syncSave, log)
+	server := NewServer(s, log)
 	r := chi.NewRouter()
-	r.Use(requestWithLogging(server.logger))
-	r.Use(gzipHandler)
+	r.Use(middlewares.RequestWithLogging(server.logger))
+	r.Use(middlewares.GzipHandler)
 	r.Mount("/", server.MetricRoute())
 
 	err = http.ListenAndServe(config.ServerAddress, r)

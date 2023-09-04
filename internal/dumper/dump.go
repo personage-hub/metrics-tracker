@@ -1,8 +1,6 @@
 package dumper
 
-import "github.com/personage-hub/metrics-tracker/internal/storage"
-
 type Dumper interface {
-	SaveData(s storage.Storage) error
-	RestoreData(s storage.Storage) error
+	SaveData(gaugeMap map[string]float64, counterMap map[string]int64) error
+	RestoreData() (gaugeMap map[string]float64, counterMap map[string]int64, err error)
 }

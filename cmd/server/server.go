@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"github.com/personage-hub/metrics-tracker/internal/consts"
-	"github.com/personage-hub/metrics-tracker/internal/dumper"
 	"go.uber.org/zap"
 	"io"
 	"net/http"
@@ -17,18 +16,15 @@ import (
 )
 
 type Server struct {
-	storage  storage.Storage
-	dumper   dumper.Dumper
-	syncSave bool
-	logger   *zap.Logger
+	storage storage.Storage
+
+	logger *zap.Logger
 }
 
-func NewServer(storage storage.Storage, dumper dumper.Dumper, syncSave bool, logger *zap.Logger) *Server {
+func NewServer(storage storage.Storage, logger *zap.Logger) *Server {
 	return &Server{
-		storage:  storage,
-		dumper:   dumper,
-		syncSave: syncSave,
-		logger:   logger,
+		storage: storage,
+		logger:  logger,
 	}
 }
 
@@ -45,12 +41,10 @@ func (s *Server) updateMetricJSON(res http.ResponseWriter, req *http.Request) {
 	switch metric.MType {
 	case "gauge":
 		if metric.Value != nil {
-			s.storage.GaugeUpdate(metric.ID, *metric.Value)
-			if s.syncSave {
-				if err := s.dumper.SaveData(s.storage); err != nil {
-					res.WriteHeader(http.StatusInternalServerError)
-					return
-				}
+			err = s.storage.GaugeUpdate(metric.ID, *metric.Value)
+			if err != nil {
+				res.WriteHeader(http.StatusInternalServerError)
+				return
 			}
 		} else {
 			res.WriteHeader(http.StatusBadRequest)
@@ -59,12 +53,10 @@ func (s *Server) updateMetricJSON(res http.ResponseWriter, req *http.Request) {
 		}
 	case "counter":
 		if metric.Delta != nil {
-			s.storage.CounterUpdate(metric.ID, *metric.Delta)
-			if s.syncSave {
-				if err := s.dumper.SaveData(s.storage); err != nil {
-					res.WriteHeader(http.StatusInternalServerError)
-					return
-				}
+			err = s.storage.CounterUpdate(metric.ID, *metric.Delta)
+			if err != nil {
+				res.WriteHeader(http.StatusInternalServerError)
+				return
 			}
 		} else {
 			res.WriteHeader(http.StatusBadRequest)
@@ -100,14 +92,11 @@ func (s *Server) updateMetric(res http.ResponseWriter, req *http.Request) {
 			res.Write([]byte(fmt.Errorf("invalid metric type: %s", metricType).Error()))
 			return
 		}
-		s.storage.GaugeUpdate(metricName, floatValue)
-		if s.syncSave {
-			if err := s.dumper.SaveData(s.storage); err != nil {
-				res.WriteHeader(http.StatusInternalServerError)
-				return
-			}
+		err = s.storage.GaugeUpdate(metricName, floatValue)
+		if err != nil {
+			res.WriteHeader(http.StatusInternalServerError)
+			return
 		}
-
 	case "counter":
 		intValue, err := strconv.ParseInt(metricValue, 10, 64)
 		if err != nil {
@@ -115,12 +104,10 @@ func (s *Server) updateMetric(res http.ResponseWriter, req *http.Request) {
 			res.Write([]byte(fmt.Errorf("invalid metric type: %s", metricType).Error()))
 			return
 		}
-		s.storage.CounterUpdate(metricName, intValue)
-		if s.syncSave {
-			if err := s.dumper.SaveData(s.storage); err != nil {
-				res.WriteHeader(http.StatusInternalServerError)
-				return
-			}
+		err = s.storage.CounterUpdate(metricName, intValue)
+		if err != nil {
+			res.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 
 	default:

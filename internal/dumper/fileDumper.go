@@ -3,9 +3,7 @@ package dumper
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/personage-hub/metrics-tracker/internal/storage"
 	"os"
-	"time"
 )
 
 type DumpFile struct {
@@ -22,9 +20,9 @@ func NewDumper(path string) *DumpFile {
 	}
 }
 
-func (file *DumpFile) SaveData(s storage.Storage) error {
-	file.FileStorage.GaugeData = s.GaugeMap()
-	file.FileStorage.CounterData = s.CounterMap()
+func (file *DumpFile) SaveData(gaugeMap map[string]float64, counterMap map[string]int64) error {
+	file.FileStorage.GaugeData = gaugeMap
+	file.FileStorage.CounterData = counterMap
 	data, err := json.MarshalIndent(file.FileStorage, "", "  ")
 	if err != nil {
 		return err
@@ -35,33 +33,17 @@ func (file *DumpFile) SaveData(s storage.Storage) error {
 	return nil
 }
 
-func (file *DumpFile) RestoreData(s storage.Storage) error {
+func (file *DumpFile) RestoreData() (map[string]float64, map[string]int64, error) {
+
+	if _, err := os.Stat(file.Path); os.IsNotExist(err) {
+		return nil, nil, fmt.Errorf("file does not exist, skipping restore. %w", err)
+	}
 	data, err := os.ReadFile(file.Path)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	if err := json.Unmarshal(data, &file.FileStorage); err != nil {
-		return err
+		return nil, nil, err
 	}
-	for metricName, metricValue := range file.FileStorage.GaugeData {
-		s.GaugeUpdate(metricName, metricValue)
-	}
-	for metricName, metricValue := range file.FileStorage.CounterData {
-		s.CounterUpdate(metricName, metricValue)
-	}
-	return nil
-}
-
-func PeriodicSave(dumper Dumper, storage storage.Storage, interval int64) error {
-	for {
-		if interval == 0 {
-			return nil
-		}
-
-		time.Sleep(time.Duration(interval) * time.Second)
-
-		if err := dumper.SaveData(storage); err != nil {
-			return fmt.Errorf("failed to dump data: %w", err)
-		}
-	}
+	return file.FileStorage.GaugeData, file.FileStorage.CounterData, nil
 }
