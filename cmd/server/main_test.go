@@ -19,12 +19,10 @@ import (
 )
 
 func TestUpdateMetricFunc(t *testing.T) {
-	s := storage.NewMemStorage()
-	d := dumper.DumpFile{
-		Path: "./tmp_tests/test.json",
-	}
+	keeper := dumper.NewDumper("/tmp/temp.json")
+	s, _ := storage.NewMemStorage(keeper, false, false)
 	log, _ := logger.Initialize("info")
-	server := NewServer(s, &d, false, log)
+	server := NewServer(s, log)
 	type want struct {
 		statusCode int
 	}
@@ -135,12 +133,10 @@ func TestUpdateGaugeMetricStorage(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := storage.NewMemStorage()
-			d := dumper.DumpFile{
-				Path: "./tmp_tests/test.json",
-			}
+			keeper := dumper.NewDumper("/tmp/temp.json")
+			s, _ := storage.NewMemStorage(keeper, false, false)
 			log, _ := logger.Initialize("info")
-			server := NewServer(s, &d, false, log)
+			server := NewServer(s, log)
 			uri := "/update/"
 			request := httptest.NewRequest(http.MethodPost, uri, bytes.NewBuffer([]byte(tt.metric)))
 			response := httptest.NewRecorder()
@@ -187,12 +183,10 @@ func TestUpdateCounterMetricStorage(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := storage.NewMemStorage()
-			d := dumper.DumpFile{
-				Path: "./tmp_tests/test.json",
-			}
+			keeper := dumper.NewDumper("/tmp/temp.json")
+			s, _ := storage.NewMemStorage(keeper, false, false)
 			log, _ := logger.Initialize("info")
-			server := NewServer(s, &d, false, log)
+			server := NewServer(s, log)
 			uri := "/update/"
 			request := httptest.NewRequest(http.MethodPost, uri, bytes.NewBuffer([]byte(tt.metric)))
 			response := httptest.NewRecorder()
