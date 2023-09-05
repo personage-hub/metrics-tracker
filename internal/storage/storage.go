@@ -118,15 +118,13 @@ func (m *MemStorage) GetCounterMetric(metricName string) (int64, bool) {
 func (m *MemStorage) PeriodicSave(saveInterval int64) {
 	tickerSave := time.NewTicker(time.Duration(saveInterval) * time.Second)
 	defer tickerSave.Stop()
-	for {
-		select {
-		case <-tickerSave.C:
-			gaugeData := m.GaugeMap()
-			counterData := m.CounterMap()
-			err := m.keeper.SaveData(gaugeData, counterData)
-			if err != nil {
-				log.Fatal("fail saving data to dump", zap.Error(err))
-			}
+
+	for range tickerSave.C {
+		gaugeData := m.GaugeMap()
+		counterData := m.CounterMap()
+		err := m.keeper.SaveData(gaugeData, counterData)
+		if err != nil {
+			log.Fatal("fail saving data to dump", zap.Error(err))
 		}
 	}
 }
