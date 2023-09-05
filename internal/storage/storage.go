@@ -125,9 +125,7 @@ func (m *MemStorage) PeriodicSave(saveInterval int64) {
 			counterData := m.CounterMap()
 			err := m.keeper.SaveData(gaugeData, counterData)
 			if err != nil {
-				if err != nil {
-					log.Fatal("fail saving data to dump", zap.Error(err))
-				}
+				log.Fatal("fail saving data to dump", zap.Error(err))
 			}
 		}
 	}
