@@ -30,9 +30,7 @@ func main() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
-	select {
-	case sig := <-sigCh:
-		log.Info("Received signal", zap.String("signal", sig.String()))
-		cancel()
-	}
+	sig := <-sigCh
+	log.Info("Received signal", zap.String("signal", sig.String()))
+	cancel()
 }
