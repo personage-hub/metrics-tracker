@@ -7,11 +7,12 @@ import (
 )
 
 type DumpFile struct {
-	Path        string
-	FileStorage struct {
-		CounterData map[string]int64
-		GaugeData   map[string]float64
-	}
+	Path string
+}
+
+type FileStorage struct {
+	CounterData map[string]int64
+	GaugeData   map[string]float64
 }
 
 func NewDumper(path string) *DumpFile {
@@ -21,9 +22,12 @@ func NewDumper(path string) *DumpFile {
 }
 
 func (file *DumpFile) SaveData(gaugeMap map[string]float64, counterMap map[string]int64) error {
-	file.FileStorage.GaugeData = gaugeMap
-	file.FileStorage.CounterData = counterMap
-	data, err := json.MarshalIndent(file.FileStorage, "", "  ")
+	fileStorage := FileStorage{
+		CounterData: counterMap,
+		GaugeData:   gaugeMap,
+	}
+
+	data, err := json.MarshalIndent(fileStorage, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -42,8 +46,9 @@ func (file *DumpFile) RestoreData() (map[string]float64, map[string]int64, error
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := json.Unmarshal(data, &file.FileStorage); err != nil {
+	fileStorage := FileStorage{}
+	if err := json.Unmarshal(data, &fileStorage); err != nil {
 		return nil, nil, err
 	}
-	return file.FileStorage.GaugeData, file.FileStorage.CounterData, nil
+	return fileStorage.GaugeData, fileStorage.CounterData, nil
 }
