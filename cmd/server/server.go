@@ -2,67 +2,73 @@ package main
 
 import (
 	"fmt"
-	"github.com/go-chi/chi/v5"
-	"github.com/personage-hub/metrics-tracker/internal"
+	"github.com/personage-hub/metrics-tracker/internal/consts"
+	"go.uber.org/zap"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/mailru/easyjson"
+	"github.com/personage-hub/metrics-tracker/internal/metrics"
+	"github.com/personage-hub/metrics-tracker/internal/storage"
 )
 
 type Server struct {
-	storage *internal.MemStorage
+	storage storage.Storage
+
+	logger *zap.Logger
 }
 
-type MetricType string
-
-const (
-	Gauge   MetricType = "gauge"
-	Counter MetricType = "counter"
-)
-
-func NewServer(storage *internal.MemStorage) *Server {
+func NewServer(storage storage.Storage, logger *zap.Logger) *Server {
 	return &Server{
 		storage: storage,
+		logger:  logger,
 	}
 }
 
-func (s *Server) metricsList(metricType MetricType) []string {
-	var list []string
-	switch metricType {
-	case Gauge:
-		for metricName := range s.storage.GaugeMap() {
-			list = append(list, metricName)
-		}
-	case Counter:
-		for metricName := range s.storage.CounterMap() {
-			list = append(list, metricName)
-		}
+func (s *Server) updateMetricJSON(res http.ResponseWriter, req *http.Request) {
+	var metric metrics.Metrics
+
+	err := easyjson.UnmarshalFromReader(req.Body, &metric)
+	if err != nil {
+		res.WriteHeader(http.StatusBadRequest)
+		res.Write([]byte("Invalid request payload"))
+		return
 	}
 
-	return list
-}
+	switch metric.MType {
+	case "gauge":
+		if metric.Value != nil {
+			s.storage.GaugeUpdate(metric.ID, *metric.Value)
+		} else {
+			res.WriteHeader(http.StatusBadRequest)
+			res.Write([]byte("Missing value for gauge metric"))
+			return
+		}
+	case "counter":
+		if metric.Delta != nil {
+			s.storage.CounterUpdate(metric.ID, *metric.Delta)
+		} else {
+			res.WriteHeader(http.StatusBadRequest)
+			res.Write([]byte("Missing delta for counter metric"))
+			return
+		}
+	default:
+		res.WriteHeader(http.StatusBadRequest)
+		res.Write([]byte("Invalid metric type"))
+		return
+	}
 
-func (s *Server) metricsHandle(rw http.ResponseWriter, r *http.Request) {
-	gaugeList := s.metricsList(Gauge)
-	counterList := s.metricsList(Counter)
-
-	result := "Gauge list: " +
-		strings.Join(gaugeList, ", ") +
-		"\n" +
-		"Counter list: " +
-		strings.Join(counterList, ", ")
-
-	_, _ = io.WriteString(rw, result)
+	data, _ := easyjson.Marshal(metric)
+	res.WriteHeader(http.StatusOK)
+	res.Header().Set("Content-Type", consts.ContentTypeJSON)
+	res.Write(data)
 }
 
 func (s *Server) updateMetric(res http.ResponseWriter, req *http.Request) {
-	if req.Method != http.MethodPost {
-		res.WriteHeader(http.StatusMethodNotAllowed)
-		res.Write([]byte("Method not allowed"))
-		return
-	}
-	metricType := MetricType(strings.ToLower(chi.URLParam(req, "metricType")))
+	metricType := strings.ToLower(chi.URLParam(req, "metricType"))
 	metricName := chi.URLParam(req, "metricName")
 	metricValue := chi.URLParam(req, "metricValue")
 	if metricName == "" {
@@ -71,7 +77,7 @@ func (s *Server) updateMetric(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 	switch metricType {
-	case Gauge:
+	case "gauge":
 		floatValue, err := strconv.ParseFloat(metricValue, 64)
 		if err != nil {
 			res.WriteHeader(http.StatusBadRequest)
@@ -79,8 +85,7 @@ func (s *Server) updateMetric(res http.ResponseWriter, req *http.Request) {
 			return
 		}
 		s.storage.GaugeUpdate(metricName, floatValue)
-
-	case Counter:
+	case "counter":
 		intValue, err := strconv.ParseInt(metricValue, 10, 64)
 		if err != nil {
 			res.WriteHeader(http.StatusBadRequest)
@@ -98,27 +103,32 @@ func (s *Server) updateMetric(res http.ResponseWriter, req *http.Request) {
 }
 
 func (s *Server) metricGet(writer http.ResponseWriter, request *http.Request) {
-	metricType := MetricType(strings.ToLower(chi.URLParam(request, "metricType")))
+	metricType := strings.ToLower(chi.URLParam(request, "metricType"))
 	metricName := chi.URLParam(request, "metricName")
 
 	switch metricType {
-	case Gauge:
+	case "gauge":
 		value, ok := s.storage.GetGaugeMetric(metricName)
 		if !ok {
 			writer.WriteHeader(http.StatusNotFound)
 			return
 		}
-		// Преобразуем значение к строке
-		valueStr := fmt.Sprintf("%v", value)
+		var valueStr string
+
+		if value == float64(int64(value)) {
+			valueStr = fmt.Sprintf("%.f.", value)
+		} else {
+			valueStr = fmt.Sprintf("%v", value)
+		}
 		writer.Write([]byte(valueStr))
 
-	case Counter:
+	case "counter":
 		value, ok := s.storage.GetCounterMetric(metricName)
 		if !ok {
 			writer.WriteHeader(http.StatusNotFound)
 			return
 		}
-		// Преобразуем значение к строке
+		writer.Header().Set("Content-Type", consts.ContentTypeHTML)
 		valueStr := fmt.Sprintf("%v", value)
 		writer.Write([]byte(valueStr))
 
@@ -128,19 +138,77 @@ func (s *Server) metricGet(writer http.ResponseWriter, request *http.Request) {
 	}
 }
 
-func (s *Server) Run(c Config) error {
+func (s *Server) metricsList(metricType string) []string {
+	var list []string
+	switch metricType {
+	case "gauge":
+		for metricName := range s.storage.GaugeMap() {
+			list = append(list, metricName)
+		}
+	case "counter":
+		for metricName := range s.storage.CounterMap() {
+			list = append(list, metricName)
+		}
+	}
+
+	return list
+}
+
+func (s *Server) metricsHandle(rw http.ResponseWriter, r *http.Request) {
+	gaugeList := s.metricsList("gauge")
+	counterList := s.metricsList("counter")
+
+	result := "Gauge list: " +
+		strings.Join(gaugeList, ", ") +
+		"\n" +
+		"Counter list: " +
+		strings.Join(counterList, ", ")
+	rw.Header().Set("Content-Type", consts.ContentTypeHTML)
+	_, _ = io.WriteString(rw, result)
+}
+
+func (s *Server) metricGetJSON(rw http.ResponseWriter, r *http.Request) {
+	var metric metrics.Metrics
+	err := easyjson.UnmarshalFromReader(r.Body, &metric)
+	if err != nil {
+		rw.WriteHeader(http.StatusBadRequest)
+		rw.Write([]byte("Invalid request payload"))
+		return
+	}
+
+	switch metric.MType {
+	case "gauge":
+		value, ok := s.storage.GetGaugeMetric(metric.ID)
+		if !ok {
+			rw.WriteHeader(http.StatusNotFound)
+			return
+		}
+		metric.Value = &value
+
+	case "counter":
+		value, ok := s.storage.GetCounterMetric(metric.ID)
+		if !ok {
+			rw.WriteHeader(http.StatusNotFound)
+			return
+		}
+		metric.Delta = &value
+	default:
+		rw.WriteHeader(http.StatusBadRequest)
+		rw.Write([]byte("Invalid metric type"))
+		return
+	}
+
+	data, _ := easyjson.Marshal(metric)
+	rw.Header().Set("Content-Type", consts.ContentTypeJSON)
+	rw.Write(data) // send back the retrieved metric
+}
+
+func (s *Server) MetricRoute() *chi.Mux {
 	r := chi.NewRouter()
-
-	r.Route("/", func(r chi.Router) {
-		r.Get("/", s.metricsHandle)
-		r.Route("/value", func(r chi.Router) {
-			r.Route("/{metricType}", func(r chi.Router) {
-				r.Get("/{metricName}", s.metricGet)
-			})
-		})
-	})
-
+	r.Get("/", s.metricsHandle)
+	r.Get("/value/{metricType}/{metricName}", s.metricGet)
 	r.Post("/update/{metricType}/{metricName}/{metricValue}", s.updateMetric)
-
-	return http.ListenAndServe(c.ServerAddress, r)
+	r.Post("/update/", s.updateMetricJSON)
+	r.Post("/value/", s.metricGetJSON)
+	return r
 }

@@ -1,119 +1,104 @@
 package main
 
 import (
+	"bytes"
 	"context"
-	"github.com/go-chi/chi/v5"
-	"github.com/personage-hub/metrics-tracker/internal"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"encoding/json"
+	"github.com/personage-hub/metrics-tracker/internal/dumper"
+	"github.com/personage-hub/metrics-tracker/internal/logger"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"testing"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/mailru/easyjson"
+	"github.com/personage-hub/metrics-tracker/internal/metrics"
+	"github.com/personage-hub/metrics-tracker/internal/storage"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestUpdateMetricFunc(t *testing.T) {
-	storage := internal.NewMemStorage()
-	server := NewServer(storage)
+	keeper := dumper.NewDumper("/tmp/temp.json")
+	s, _ := storage.NewMemStorage(keeper, false)
+	log, _ := logger.Initialize("info")
+	server := NewServer(s, log)
 	type want struct {
 		statusCode int
 	}
 	tests := []struct {
-		name        string
-		request     string
-		server      *Server
-		method      string
-		metricType  MetricType
-		metricName  string
-		metricValue string
-		want        want
+		name    string
+		request string
+		server  *Server
+		method  string
+		metric  metrics.Metrics
+		want    want
 	}{
 		{
-			name:        "Success Update gauge value",
-			request:     "/update",
-			server:      server,
-			method:      http.MethodPost,
-			metricType:  MetricType("gauge"),
-			metricName:  "someMetric",
-			metricValue: "543.0",
+			name:    "Success Update gauge value",
+			request: "/update",
+			server:  server,
+			method:  http.MethodPost,
+			metric: metrics.Metrics{
+				ID:    "someMetric",
+				MType: "gauge",
+				Value: func() *float64 { v := 543.01; return &v }(),
+			},
 			want: want{
 				statusCode: http.StatusOK,
 			},
 		},
 		{
-			name:        "Fail Update gauge value",
-			request:     "/update",
-			server:      server,
-			method:      http.MethodPost,
-			metricType:  MetricType("gauge"),
-			metricName:  "",
-			metricValue: "",
+			name:    "Fail Update gauge value",
+			request: "/update",
+			server:  server,
+			method:  http.MethodPost,
+			metric: metrics.Metrics{
+				ID:    "someMetric",
+				MType: "gauge",
+			},
 			want: want{
-				statusCode: http.StatusNotFound,
+				statusCode: http.StatusBadRequest,
 			},
 		},
 		{
-			name:        "Fail Update gauge Method get not allowed",
-			request:     "/update",
-			server:      server,
-			metricType:  MetricType("gauge"),
-			metricName:  "someMetric",
-			metricValue: "543.0",
-			method:      http.MethodGet,
-			want: want{
-				statusCode: http.StatusMethodNotAllowed,
+			name:    "Success Counter gauge value",
+			request: "/update",
+			server:  server,
+			method:  http.MethodPost,
+			metric: metrics.Metrics{
+				ID:    "someMetric",
+				MType: "counter",
+				Delta: func() *int64 { v := int64(5456); return &v }(),
 			},
-		},
-		{
-			name:        "Success Counter gauge value",
-			request:     "/update",
-			server:      server,
-			method:      http.MethodPost,
-			metricType:  MetricType("counter"),
-			metricName:  "someMetric",
-			metricValue: "527",
 			want: want{
 				statusCode: http.StatusOK,
 			},
 		},
 		{
-			name:        "Fail Update Counter value",
-			request:     "/update",
-			server:      server,
-			metricType:  MetricType("counter"),
-			metricName:  "",
-			metricValue: "",
-			method:      http.MethodPost,
-			want: want{
-				statusCode: http.StatusNotFound,
+			name:    "Fail Update Counter value",
+			request: "/update",
+			server:  server,
+			method:  http.MethodPost,
+			metric: metrics.Metrics{
+				ID:    "someMetric",
+				MType: "counter",
 			},
-		},
-		{
-			name:        "Fail Update Counter Method get not allowed",
-			request:     "/update",
-			server:      server,
-			metricType:  MetricType("counter"),
-			metricName:  "someMetric",
-			metricValue: "527",
-			method:      http.MethodGet,
 			want: want{
-				statusCode: http.StatusMethodNotAllowed,
+				statusCode: http.StatusBadRequest,
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			request := httptest.NewRequest(tt.method, tt.request, nil)
+			jsonMetric, _ := json.Marshal(tt.metric)
+			request := httptest.NewRequest(tt.method, tt.request, bytes.NewBuffer(jsonMetric))
 			response := httptest.NewRecorder()
 
 			ctx := context.WithValue(request.Context(), chi.RouteCtxKey, chi.NewRouteContext())
-			routeContext := chi.RouteContext(ctx)
-			routeContext.URLParams.Add("metricType", string(tt.metricType))
-			routeContext.URLParams.Add("metricName", tt.metricName)
-			routeContext.URLParams.Add("metricValue", tt.metricValue)
 			request = request.WithContext(ctx)
 
-			server.updateMetric(response, request)
+			server.updateMetricJSON(response, request)
 			result := response.Result()
 			assert.Equal(t, tt.want.statusCode, result.StatusCode)
 			defer result.Body.Close()
@@ -126,26 +111,21 @@ func TestUpdateGaugeMetricStorage(t *testing.T) {
 		statusCode int
 	}
 	tests := []struct {
-		name        string
-		metricType  MetricType
-		metricName  string
-		metricValue string
-		want        want
+		name   string
+		metric string
+		want   want
 	}{
 		{
-			name:        "Success Update gauge value",
-			metricName:  "someMetric",
-			metricType:  MetricType("gauge"),
-			metricValue: "230.001",
+			name:   "Success Update gauge value",
+			metric: "{\n    \"id\": \"someMetric\",\n    \"type\": \"gauge\",\n    \"value\": 456.3\n}",
 			want: want{
 				statusCode: http.StatusOK,
 			},
 		},
 		{
-			name:        "Fail Update gauge value",
-			metricName:  "someMetric",
-			metricType:  MetricType("gauge"),
-			metricValue: "inconvertible",
+			name:   "Fail Update gauge value",
+			metric: "{\n    \"id\": \"someMetric\",\n    \"type\": \"gauge\",\n    \"value\": \"inconvertible\"\n}",
+
 			want: want{
 				statusCode: http.StatusBadRequest,
 			},
@@ -153,25 +133,25 @@ func TestUpdateGaugeMetricStorage(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			storage := internal.NewMemStorage()
-			server := NewServer(storage)
-			uri := "/update/gauge/" + tt.metricName + "/" + tt.metricValue
-			request := httptest.NewRequest(http.MethodPost, uri, nil)
+			keeper := dumper.NewDumper("/tmp/temp.json")
+			s, _ := storage.NewMemStorage(keeper, false)
+			log, _ := logger.Initialize("info")
+			server := NewServer(s, log)
+			uri := "/update/"
+			request := httptest.NewRequest(http.MethodPost, uri, bytes.NewBuffer([]byte(tt.metric)))
 			response := httptest.NewRecorder()
 
 			ctx := context.WithValue(request.Context(), chi.RouteCtxKey, chi.NewRouteContext())
-			routeContext := chi.RouteContext(ctx)
-			routeContext.URLParams.Add("metricType", string(tt.metricType))
-			routeContext.URLParams.Add("metricName", tt.metricName)
-			routeContext.URLParams.Add("metricValue", tt.metricValue)
+
 			request = request.WithContext(ctx)
 
-			server.updateMetric(response, request)
+			server.updateMetricJSON(response, request)
 			result := response.Result()
 			require.Equal(t, tt.want.statusCode, result.StatusCode)
-			resultValue, _ := storage.GetGaugeMetric(tt.metricName)
-			wantValue, _ := strconv.ParseFloat(tt.metricValue, 64)
-			assert.Equal(t, wantValue, resultValue)
+			var m metrics.Metrics
+			_ = easyjson.Unmarshal([]byte(tt.metric), &m)
+			resultValue, _ := s.GetGaugeMetric(m.ID)
+			assert.Equal(t, *m.Value, resultValue)
 			defer result.Body.Close()
 		})
 	}
@@ -182,26 +162,20 @@ func TestUpdateCounterMetricStorage(t *testing.T) {
 		statusCode int
 	}
 	tests := []struct {
-		name        string
-		metricType  MetricType
-		metricName  string
-		metricValue string
-		want        want
+		name   string
+		metric string
+		want   want
 	}{
 		{
-			name:        "Success Update counter value",
-			metricName:  "someMetric",
-			metricType:  MetricType("counter"),
-			metricValue: "230",
+			name:   "Success Update counter value",
+			metric: "{\n    \"id\": \"someMetric\",\n    \"type\": \"counter\",\n    \"delta\": 456\n}",
 			want: want{
 				statusCode: http.StatusOK,
 			},
 		},
 		{
-			name:        "Fail Update counter value",
-			metricName:  "someMetric",
-			metricValue: "inconvertible",
-			metricType:  MetricType("counter"),
+			name:   "Fail Update counter value",
+			metric: "{\n    \"id\": \"someMetric\",\n    \"type\": \"counter\",\n    \"delta\": \"inconvertible\"\n}",
 			want: want{
 				statusCode: http.StatusBadRequest,
 			},
@@ -209,25 +183,25 @@ func TestUpdateCounterMetricStorage(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			storage := internal.NewMemStorage()
-			server := NewServer(storage)
-			uri := "/update/counter/" + tt.metricName + "/" + tt.metricValue
-			request := httptest.NewRequest(http.MethodPost, uri, nil)
+			keeper := dumper.NewDumper("/tmp/temp.json")
+			s, _ := storage.NewMemStorage(keeper, false)
+			log, _ := logger.Initialize("info")
+			server := NewServer(s, log)
+			uri := "/update/"
+			request := httptest.NewRequest(http.MethodPost, uri, bytes.NewBuffer([]byte(tt.metric)))
 			response := httptest.NewRecorder()
 
 			ctx := context.WithValue(request.Context(), chi.RouteCtxKey, chi.NewRouteContext())
-			routeContext := chi.RouteContext(ctx)
-			routeContext.URLParams.Add("metricType", string(tt.metricType))
-			routeContext.URLParams.Add("metricName", tt.metricName)
-			routeContext.URLParams.Add("metricValue", tt.metricValue)
+
 			request = request.WithContext(ctx)
 
-			server.updateMetric(response, request)
+			server.updateMetricJSON(response, request)
 			result := response.Result()
 			require.Equal(t, tt.want.statusCode, result.StatusCode)
-			resultValue, _ := storage.GetCounterMetric(tt.metricName)
-			wantValue, _ := strconv.ParseInt(tt.metricValue, 10, 64)
-			assert.Equal(t, wantValue, resultValue)
+			var m metrics.Metrics
+			_ = easyjson.Unmarshal([]byte(tt.metric), &m)
+			resultValue, _ := s.GetCounterMetric(m.ID)
+			assert.Equal(t, *m.Delta, resultValue)
 			defer result.Body.Close()
 		})
 	}

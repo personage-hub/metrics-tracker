@@ -1,19 +1,49 @@
-package internal
+package storage
 
 import (
 	"github.com/cornelk/hashmap"
+	"github.com/personage-hub/metrics-tracker/internal/dumper"
+	"go.uber.org/zap"
+	"log"
+	"time"
 )
+
+type Storage interface {
+	GaugeUpdate(key string, value float64)
+	CounterUpdate(key string, value int64)
+	GaugeMap() map[string]float64
+	CounterMap() map[string]int64
+	GetGaugeMetric(metricName string) (float64, bool)
+	GetCounterMetric(metricName string) (int64, bool)
+	PeriodicSave(saveInterval int64)
+}
 
 type MemStorage struct {
 	gauge   *hashmap.Map[string, float64]
 	counter *hashmap.Map[string, int64]
+	keeper  dumper.Dumper
 }
 
-func NewMemStorage() *MemStorage {
-	return &MemStorage{
+func NewMemStorage(k dumper.Dumper, restore bool) (*MemStorage, error) {
+	m := &MemStorage{
 		gauge:   hashmap.New[string, float64](),
 		counter: hashmap.New[string, int64](),
+		keeper:  k,
 	}
+	if !restore {
+		return m, nil
+	}
+	gaugeData, counterData, err := m.keeper.RestoreData()
+	if err != nil {
+		return m, err
+	}
+	for metricName, metricValue := range gaugeData {
+		m.GaugeUpdate(metricName, metricValue)
+	}
+	for metricName, metricValue := range counterData {
+		m.CounterUpdate(metricName, metricValue)
+	}
+	return m, nil
 }
 
 func (m *MemStorage) GaugeUpdate(key string, value float64) {
@@ -61,4 +91,18 @@ func (m *MemStorage) GetCounterMetric(metricName string) (int64, bool) {
 		return value, true
 	}
 	return 0, false
+}
+
+func (m *MemStorage) PeriodicSave(saveInterval int64) {
+	tickerSave := time.NewTicker(time.Duration(saveInterval) * time.Second)
+	defer tickerSave.Stop()
+
+	for range tickerSave.C {
+		gaugeData := m.GaugeMap()
+		counterData := m.CounterMap()
+		err := m.keeper.SaveData(gaugeData, counterData)
+		if err != nil {
+			log.Fatal("fail saving data to dump", zap.Error(err))
+		}
+	}
 }
