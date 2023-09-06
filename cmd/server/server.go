@@ -41,11 +41,7 @@ func (s *Server) updateMetricJSON(res http.ResponseWriter, req *http.Request) {
 	switch metric.MType {
 	case "gauge":
 		if metric.Value != nil {
-			err = s.storage.GaugeUpdate(metric.ID, *metric.Value)
-			if err != nil {
-				res.WriteHeader(http.StatusInternalServerError)
-				return
-			}
+			s.storage.GaugeUpdate(metric.ID, *metric.Value)
 		} else {
 			res.WriteHeader(http.StatusBadRequest)
 			res.Write([]byte("Missing value for gauge metric"))
@@ -53,11 +49,7 @@ func (s *Server) updateMetricJSON(res http.ResponseWriter, req *http.Request) {
 		}
 	case "counter":
 		if metric.Delta != nil {
-			err = s.storage.CounterUpdate(metric.ID, *metric.Delta)
-			if err != nil {
-				res.WriteHeader(http.StatusInternalServerError)
-				return
-			}
+			s.storage.CounterUpdate(metric.ID, *metric.Delta)
 		} else {
 			res.WriteHeader(http.StatusBadRequest)
 			res.Write([]byte("Missing delta for counter metric"))
@@ -92,11 +84,7 @@ func (s *Server) updateMetric(res http.ResponseWriter, req *http.Request) {
 			res.Write([]byte(fmt.Errorf("invalid metric type: %s", metricType).Error()))
 			return
 		}
-		err = s.storage.GaugeUpdate(metricName, floatValue)
-		if err != nil {
-			res.WriteHeader(http.StatusInternalServerError)
-			return
-		}
+		s.storage.GaugeUpdate(metricName, floatValue)
 	case "counter":
 		intValue, err := strconv.ParseInt(metricValue, 10, 64)
 		if err != nil {
@@ -104,11 +92,7 @@ func (s *Server) updateMetric(res http.ResponseWriter, req *http.Request) {
 			res.Write([]byte(fmt.Errorf("invalid metric type: %s", metricType).Error()))
 			return
 		}
-		err = s.storage.CounterUpdate(metricName, intValue)
-		if err != nil {
-			res.WriteHeader(http.StatusInternalServerError)
-			return
-		}
+		s.storage.CounterUpdate(metricName, intValue)
 
 	default:
 		res.WriteHeader(http.StatusBadRequest)

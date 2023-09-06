@@ -16,18 +16,17 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	syncSave := config.StoreInterval == 0
 
 	d := dumper.NewDumper(config.FileStorage)
-	s, err := storage.NewMemStorage(d, config.Restore, syncSave)
+	s, err := storage.NewMemStorage(d, config.Restore)
 
 	if err != nil {
-		panic(err)
+		log.Error("skipping restore due to error", zap.Error(err))
+	} else {
+		log.Info("restore successfully complete")
 	}
 
-	if !syncSave {
-		s.PeriodicSave(config.StoreInterval)
-	}
+	go s.PeriodicSave(config.StoreInterval)
 
 	log.Info("Running server", zap.String("address", config.ServerAddress))
 	server := NewServer(s, log)

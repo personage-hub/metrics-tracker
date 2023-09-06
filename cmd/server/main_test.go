@@ -20,7 +20,7 @@ import (
 
 func TestUpdateMetricFunc(t *testing.T) {
 	keeper := dumper.NewDumper("/tmp/temp.json")
-	s, _ := storage.NewMemStorage(keeper, false, false)
+	s, _ := storage.NewMemStorage(keeper, false)
 	log, _ := logger.Initialize("info")
 	server := NewServer(s, log)
 	type want struct {
@@ -134,7 +134,7 @@ func TestUpdateGaugeMetricStorage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			keeper := dumper.NewDumper("/tmp/temp.json")
-			s, _ := storage.NewMemStorage(keeper, false, false)
+			s, _ := storage.NewMemStorage(keeper, false)
 			log, _ := logger.Initialize("info")
 			server := NewServer(s, log)
 			uri := "/update/"
@@ -184,7 +184,7 @@ func TestUpdateCounterMetricStorage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			keeper := dumper.NewDumper("/tmp/temp.json")
-			s, _ := storage.NewMemStorage(keeper, false, false)
+			s, _ := storage.NewMemStorage(keeper, false)
 			log, _ := logger.Initialize("info")
 			server := NewServer(s, log)
 			uri := "/update/"

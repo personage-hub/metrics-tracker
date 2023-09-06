@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"fmt"
 	"github.com/cornelk/hashmap"
 	"github.com/personage-hub/metrics-tracker/internal/dumper"
 	"go.uber.org/zap"
@@ -10,8 +9,8 @@ import (
 )
 
 type Storage interface {
-	GaugeUpdate(key string, value float64) error
-	CounterUpdate(key string, value int64) error
+	GaugeUpdate(key string, value float64)
+	CounterUpdate(key string, value int64)
 	GaugeMap() map[string]float64
 	CounterMap() map[string]int64
 	GetGaugeMetric(metricName string) (float64, bool)
@@ -20,65 +19,44 @@ type Storage interface {
 }
 
 type MemStorage struct {
-	gauge    *hashmap.Map[string, float64]
-	counter  *hashmap.Map[string, int64]
-	syncSave bool
-	keeper   dumper.Dumper
+	gauge   *hashmap.Map[string, float64]
+	counter *hashmap.Map[string, int64]
+	keeper  dumper.Dumper
 }
 
-func NewMemStorage(k dumper.Dumper, restore bool, syncSave bool) (*MemStorage, error) {
+func NewMemStorage(k dumper.Dumper, restore bool) (*MemStorage, error) {
 	m := &MemStorage{
-		gauge:    hashmap.New[string, float64](),
-		counter:  hashmap.New[string, int64](),
-		syncSave: syncSave,
-		keeper:   k,
+		gauge:   hashmap.New[string, float64](),
+		counter: hashmap.New[string, int64](),
+		keeper:  k,
 	}
 	if !restore {
 		return m, nil
 	}
 	gaugeData, counterData, err := m.keeper.RestoreData()
 	if err != nil {
-		fmt.Printf("skipping restore")
-		return m, nil
+		return m, err
 	}
 	for metricName, metricValue := range gaugeData {
-		_ = m.GaugeUpdate(metricName, metricValue)
+		m.GaugeUpdate(metricName, metricValue)
 	}
 	for metricName, metricValue := range counterData {
-		_ = m.CounterUpdate(metricName, metricValue)
+		m.CounterUpdate(metricName, metricValue)
 	}
 	return m, nil
 }
 
-func (m *MemStorage) GaugeUpdate(key string, value float64) error {
+func (m *MemStorage) GaugeUpdate(key string, value float64) {
 	m.gauge.Set(key, value)
-	if m.syncSave {
-		gaugeData := m.GaugeMap()
-		counterData := m.CounterMap()
-		err := m.keeper.SaveData(gaugeData, counterData)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
-func (m *MemStorage) CounterUpdate(key string, value int64) error {
+func (m *MemStorage) CounterUpdate(key string, value int64) {
 	current, ok := m.counter.Get(key)
 	if !ok {
 		m.counter.Set(key, value)
 	} else {
 		m.counter.Set(key, current+value)
 	}
-	if m.syncSave {
-		gaugeData := m.GaugeMap()
-		counterData := m.CounterMap()
-		err := m.keeper.SaveData(gaugeData, counterData)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (m *MemStorage) GaugeMap() map[string]float64 {
