@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"github.com/personage-hub/metrics-tracker/internal/dumper"
 	"github.com/personage-hub/metrics-tracker/internal/logger"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -14,8 +16,6 @@ import (
 	"github.com/personage-hub/metrics-tracker/internal/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"net/http"
-	"net/http/httptest"
 )
 
 func TestUpdateMetricFunc(t *testing.T) {

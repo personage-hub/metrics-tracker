@@ -1,13 +1,14 @@
 package main
 
 import (
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/personage-hub/metrics-tracker/internal/dumper"
 	"github.com/personage-hub/metrics-tracker/internal/logger"
 	"github.com/personage-hub/metrics-tracker/internal/middlewares"
 	"github.com/personage-hub/metrics-tracker/internal/storage"
 	"go.uber.org/zap"
-	"net/http"
 )
 
 func main() {
