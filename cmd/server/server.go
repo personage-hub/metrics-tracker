@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/personage-hub/metrics-tracker/internal/consts"
+	"github.com/personage-hub/metrics-tracker/internal/db"
 	"go.uber.org/zap"
 	"io"
 	"net/http"
@@ -17,15 +19,25 @@ import (
 
 type Server struct {
 	storage storage.Storage
-
-	logger *zap.Logger
+	db      db.Database
+	logger  *zap.Logger
 }
 
-func NewServer(storage storage.Storage, logger *zap.Logger) *Server {
+func NewServer(storage storage.Storage, db db.Database, logger *zap.Logger) *Server {
 	return &Server{
 		storage: storage,
+		db:      db,
 		logger:  logger,
 	}
+}
+
+func (s *Server) handlePing(res http.ResponseWriter, req *http.Request) {
+	err := s.db.Conn.Ping(context.Background())
+	if err != nil {
+		http.Error(res, "Connection to DB is lost", http.StatusInternalServerError)
+		return
+	}
+	res.WriteHeader(http.StatusOK)
 }
 
 func (s *Server) updateMetricJSON(res http.ResponseWriter, req *http.Request) {
@@ -206,6 +218,7 @@ func (s *Server) metricGetJSON(rw http.ResponseWriter, r *http.Request) {
 func (s *Server) MetricRoute() *chi.Mux {
 	r := chi.NewRouter()
 	r.Get("/", s.metricsHandle)
+	r.Get("/ping", s.handlePing)
 	r.Get("/value/{metricType}/{metricName}", s.metricGet)
 	r.Post("/update/{metricType}/{metricName}/{metricValue}", s.updateMetric)
 	r.Post("/update/", s.updateMetricJSON)

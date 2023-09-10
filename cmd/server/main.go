@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/personage-hub/metrics-tracker/internal/db"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -17,7 +18,11 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
+	database, err := db.CreateAndConnect(config.DatabaseDSN)
+	if err != nil {
+		log.Error("DB error", zap.Error(err))
+		panic(err)
+	}
 	d := dumper.NewDumper(config.FileStorage)
 	s, err := storage.NewMemStorage(d, config.Restore)
 
@@ -30,7 +35,7 @@ func main() {
 	go s.PeriodicSave(config.StoreInterval)
 
 	log.Info("Running server", zap.String("address", config.ServerAddress))
-	server := NewServer(s, log)
+	server := NewServer(s, database, log)
 	r := chi.NewRouter()
 	r.Use(middlewares.RequestWithLogging(server.logger))
 	r.Use(middlewares.GzipHandler)
