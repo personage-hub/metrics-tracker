@@ -61,7 +61,7 @@ func parseFlags() Config {
 	flag.StringVar(
 		&config.DatabaseDSN,
 		"d",
-		"localhost",
+		"",
 		"Database host",
 	)
 	flag.Parse()

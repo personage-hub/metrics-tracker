@@ -32,6 +32,10 @@ func NewServer(storage storage.Storage, db db.Database, logger *zap.Logger) *Ser
 }
 
 func (s *Server) handlePing(res http.ResponseWriter, req *http.Request) {
+	if s.db.Conn == nil {
+		http.Error(res, "No connection to DB was defined", http.StatusInternalServerError)
+		return
+	}
 	err := s.db.Conn.Ping(context.Background())
 	if err != nil {
 		http.Error(res, "Connection to DB is lost", http.StatusInternalServerError)

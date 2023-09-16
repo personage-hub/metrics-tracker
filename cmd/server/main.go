@@ -21,7 +21,6 @@ func main() {
 	database, err := db.CreateAndConnect(config.DatabaseDSN)
 	if err != nil {
 		log.Error("DB error", zap.Error(err))
-		panic(err)
 	}
 	d := dumper.NewDumper(config.FileStorage)
 	s, err := storage.NewMemStorage(d, config.Restore)
