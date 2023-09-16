@@ -18,20 +18,31 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	database, err := db.CreateAndConnect(config.DatabaseDSN)
-	if err != nil {
-		log.Error("DB error", zap.Error(err))
-	}
-	d := dumper.NewDumper(config.FileStorage)
-	s, err := storage.NewMemStorage(d, config.Restore)
+	var database db.Database
+	var s storage.Storage
 
-	if err != nil {
-		log.Error("skipping restore due to error", zap.Error(err))
+	if config.DatabaseDSN == "" {
+		d := dumper.NewDumper(config.FileStorage)
+		s, err = storage.NewMemStorage(d, config.Restore)
+		if err != nil {
+			log.Error("skipping restore due to error", zap.Error(err))
+		} else {
+			log.Info("restore successfully complete")
+		}
+
+		go storage.PeriodicSave(s, d, config.StoreInterval)
 	} else {
-		log.Info("restore successfully complete")
-	}
+		database, err = db.CreateAndConnect(config.DatabaseDSN)
+		if err != nil {
+			log.Error("DB error", zap.Error(err))
+		}
+		err = database.CreateTables()
+		if err != nil {
+			log.Error("DB error", zap.Error(err))
+		}
+		s = storage.NewDBStorage(&database, log)
 
-	go s.PeriodicSave(config.StoreInterval)
+	}
 
 	log.Info("Running server", zap.String("address", config.ServerAddress))
 	server := NewServer(s, database, log)
