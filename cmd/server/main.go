@@ -50,7 +50,6 @@ func main() {
 	r.Use(middlewares.RequestWithLogging(server.logger))
 	r.Use(middlewares.GzipHandler)
 	r.Mount("/", server.MetricRoute())
-
 	err = http.ListenAndServe(config.ServerAddress, r)
 
 	if err != nil {
