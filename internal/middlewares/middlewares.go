@@ -3,6 +3,7 @@ package middlewares
 import (
 	"bytes"
 	"compress/gzip"
+	"github.com/personage-hub/metrics-tracker/internal/consts"
 	"io"
 	"net/http"
 	"strconv"
@@ -80,7 +81,20 @@ func (w gzipWriter) Write(b []byte) (int, error) {
 
 func GzipHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+
+		compressedData := r.Header.Get("Content-Encoding") == consts.Compression
+
+		if compressedData {
+			gr, err := gzip.NewReader(r.Body)
+			if err != nil {
+				http.Error(w, "Failed to create gzip reader", http.StatusBadRequest)
+				return
+			}
+			defer gr.Close()
+			r.Body = gr
+		}
+		needsCompression := strings.Contains(r.Header.Get("Accept-Encoding"), consts.Compression)
+		if !needsCompression {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -92,7 +106,7 @@ func GzipHandler(next http.Handler) http.Handler {
 		}
 		defer gz.Close()
 
-		w.Header().Set("Content-Encoding", "gzip")
+		w.Header().Set("Content-Encoding", consts.Compression)
 		next.ServeHTTP(gzipWriter{ResponseWriter: w, Writer: gz}, r)
 	})
 }

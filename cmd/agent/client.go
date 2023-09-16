@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/mailru/easyjson"
@@ -94,6 +95,50 @@ func (mc *MonitoringClient) SendMetric(metric metrics.Metrics) error {
 	return nil
 }
 
+func (mc *MonitoringClient) SendBatch(batch []metrics.Metrics) error {
+	start := time.Now()
+	url := fmt.Sprintf("http://%s/updates/", mc.Config.ServerAddress)
+	jsonBody, err := json.Marshal(batch)
+	if err != nil {
+		return fmt.Errorf("failed converting data for request: %w", err)
+	}
+	var compressedBodyBuffer bytes.Buffer
+
+	gz := gzip.NewWriter(&compressedBodyBuffer)
+
+	_, err = gz.Write(jsonBody)
+	if err != nil {
+		return fmt.Errorf("failed creating request: %w", err)
+	}
+	gz.Close()
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(compressedBodyBuffer.Bytes()))
+	if err != nil {
+		return fmt.Errorf("failed creating request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", consts.ContentTypeJSON)
+	req.Header.Set("Content-Encoding", "gzip")
+
+	duration := time.Since(start)
+	resp, err := mc.Client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed send metric: %w", err)
+	}
+	defer resp.Body.Close()
+
+	mc.logger.Info(
+		"HTTP request sent",
+		zap.String("method", req.Method),
+		zap.String("url", req.URL.String()),
+		zap.String("status", resp.Status),
+		zap.String("duration", duration.String()),
+	)
+
+	mc.logger.Info("Response:", zap.Int("status", resp.StatusCode))
+
+	return nil
+}
+
 func (mc *MonitoringClient) StartMonitoring(ctx context.Context) {
 	tickerPoll := time.NewTicker(mc.Config.PollInterval)
 	tickerReport := time.NewTicker(mc.Config.ReportInterval)
@@ -169,6 +214,7 @@ func (mc *MonitoringClient) CollectMetrics() {
 func (mc *MonitoringClient) StartReporting() {
 	mc.logger.Info("Reporting metrics to server...")
 	metStorage := <-mc.metricStorage
+	var metricArray []metrics.Metrics
 	for metricName, currentMetric := range metStorage {
 		m := metrics.Metrics{
 			ID:    metricName,
@@ -178,17 +224,16 @@ func (mc *MonitoringClient) StartReporting() {
 		case "gauge":
 			{
 				m.Value = &currentMetric.metricValue
+				metricArray = append(metricArray, m)
 			}
 		case "counter":
 			{
 				v := int64(currentMetric.metricValue)
 				m.Delta = &v
+				metricArray = append(metricArray, m)
 			}
 
 		}
-		err := mc.SendMetric(m)
-		if err != nil {
-			mc.logger.Error("error sending gauge metric: %w", zap.Error(err))
-		}
 	}
+	_ = mc.SendBatch(metricArray)
 }
