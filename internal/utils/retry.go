@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -52,8 +53,15 @@ func RetryFunctionCall(logger *zap.Logger, intervals []int, errorsToRetry []erro
 
 func containsError(errorsSlice []error, err error) bool {
 	for _, e := range errorsSlice {
-		if errors.As(err, &e) {
+		if errors.Is(e, err) {
 			return true
+		}
+
+		var opErr *net.OpError
+		if errors.As(err, &opErr) {
+			if opErr.Op == "dial" && opErr.Net == "tcp" && strings.Contains(opErr.Err.Error(), "connect: connection refused") {
+				return true
+			}
 		}
 	}
 	return false
