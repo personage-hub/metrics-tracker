@@ -6,11 +6,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-
 	"github.com/mailru/easyjson"
 	"github.com/personage-hub/metrics-tracker/internal/consts"
 	"github.com/personage-hub/metrics-tracker/internal/metrics"
 	"github.com/personage-hub/metrics-tracker/internal/storage"
+	"github.com/personage-hub/metrics-tracker/internal/utils"
 	"go.uber.org/zap"
 	"math/rand"
 	"net/http"
@@ -235,5 +235,13 @@ func (mc *MonitoringClient) StartReporting() {
 
 		}
 	}
-	_ = mc.SendBatch(metricArray)
+
+	fn := func() (interface{}, error) {
+		return nil, mc.SendBatch(metricArray)
+	}
+	_, err := utils.RetryFunctionCall(mc.logger, nil, utils.NetworkErrorsToRetry, fn)
+	if err != nil {
+		mc.logger.Error("Failed to send metrics after retries", zap.Error(err))
+	}
+
 }
