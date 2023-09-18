@@ -11,13 +11,10 @@ import (
 	"time"
 )
 
-var opErr *net.OpError
-
 var NetworkErrorsToRetry = []error{
 	net.ErrWriteToConnected,
 	net.ErrClosed,
 	http.ErrHandlerTimeout,
-	opErr,
 }
 
 var defaultIntervals = []int{1, 3, 5}
