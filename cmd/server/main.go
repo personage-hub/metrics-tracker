@@ -36,7 +36,7 @@ func main() {
 		if err != nil {
 			log.Error("DB error", zap.Error(err))
 		}
-		err = database.CreateTables()
+		err = database.DoMigrations()
 		if err != nil {
 			log.Error("DB error", zap.Error(err))
 		}

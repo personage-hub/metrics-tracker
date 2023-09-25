@@ -2,26 +2,16 @@ package db
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
 )
 
-const (
-	createGaugeTableSQL = `
-		CREATE TABLE IF NOT EXISTS gauges (
-		id SERIAL PRIMARY KEY,
-		name VARCHAR(255) NOT NULL UNIQUE,
-		value DOUBLE PRECISION NOT NULL,
-		created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-		updated_at TIMESTAMP NOT NULL DEFAULT NOW());`
-
-	createCounterTableSQL = `
-		CREATE TABLE IF NOT EXISTS counters (
-			id SERIAL PRIMARY KEY,
-			name VARCHAR(255) NOT NULL UNIQUE,
-			value BIGINT NOT NULL,
-			created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-			updated_at TIMESTAMP NOT NULL DEFAULT NOW());`
-)
+const migrationsDir = "./internal/migrations"
 
 type Database struct {
 	Conn *pgx.Conn
@@ -46,14 +36,23 @@ func (db *Database) Close() {
 	db.Conn.Close(context.TODO())
 }
 
-func (db *Database) CreateTables() error {
+func (db *Database) DoMigrations() error {
+	sqlDB := stdlib.OpenDB(*db.Conn.Config())
 
-	if _, err := db.Conn.Exec(context.TODO(), createGaugeTableSQL); err != nil {
-		return err
+	driver, err := postgres.WithInstance(sqlDB, &postgres.Config{})
+	if err != nil {
+		return fmt.Errorf("could not start SQL migration: %v", err)
+	}
+	m, err := migrate.NewWithDatabaseInstance(
+		"file://"+migrationsDir, "postgres", driver)
+	if err != nil {
+		return fmt.Errorf("migration failed: %v", err)
+	}
+	defer m.Close()
+
+	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		return fmt.Errorf("an error occurred while syncing migrations: %v", err)
 	}
 
-	if _, err := db.Conn.Exec(context.TODO(), createCounterTableSQL); err != nil {
-		return err
-	}
 	return nil
 }
