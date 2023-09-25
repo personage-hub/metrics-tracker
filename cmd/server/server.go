@@ -231,7 +231,6 @@ func (s *Server) batchUpdate(rw http.ResponseWriter, r *http.Request) {
 		http.Error(rw, err.Error(), http.StatusBadRequest)
 		return
 	}
-	s.logger.Info("unmarshaling")
 	err = json.Unmarshal(buf.Bytes(), &m)
 	if err != nil {
 		s.logger.Error("failed unmarshal data", zap.Error(err))

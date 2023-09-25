@@ -23,14 +23,6 @@ func main() {
 	var d dumper.Dumper
 	if config.DatabaseDSN == "" {
 		d = dumper.NewDumper(config.FileStorage)
-		s, err = storage.NewMemStorage(d, config.Restore)
-		if err != nil {
-			log.Error("skipping restore due to error", zap.Error(err))
-		} else {
-			log.Info("restore successfully complete")
-		}
-
-		go storage.PeriodicSave(s, d, config.StoreInterval)
 	} else {
 		database, err = db.CreateAndConnect(config.DatabaseDSN)
 		if err != nil {
@@ -43,6 +35,7 @@ func main() {
 		d = dumper.NewDBDumper(database)
 	}
 	s, err = storage.NewMemStorage(d, config.Restore)
+
 	if err != nil {
 		log.Error("skipping restore due to error", zap.Error(err))
 	} else {

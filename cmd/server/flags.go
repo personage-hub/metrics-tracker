@@ -41,7 +41,7 @@ func parseFlags() Config {
 	flag.Int64Var(
 		&config.StoreInterval,
 		"i",
-		300,
+		2,
 		"The time interval in seconds after which the current data are saved to disk "+
 			"(a value of 0 makes the write synchronous)",
 	)

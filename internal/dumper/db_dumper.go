@@ -23,7 +23,7 @@ func (d *DBDumper) SaveData(gaugeMap map[string]float64, counterMap map[string]i
 	if err != nil {
 		return fmt.Errorf("unable to start transaction: %w", err)
 	}
-	defer tx.Rollback(ctx) // Откат транзакции, если возникла ошибка
+	defer tx.Rollback(ctx)
 
 	// Вставка данных Gauge
 	for name, value := range gaugeMap {
@@ -33,7 +33,6 @@ func (d *DBDumper) SaveData(gaugeMap map[string]float64, counterMap map[string]i
 		}
 	}
 
-	// Вставка данных Counter
 	for name, value := range counterMap {
 		_, err := tx.Exec(ctx, `INSERT INTO counters (name, value) VALUES ($1, $2) ON CONFLICT (name) DO UPDATE SET value = EXCLUDED.value`, name, value)
 		if err != nil {
@@ -53,7 +52,6 @@ func (d *DBDumper) RestoreData() (gaugeMap map[string]float64, counterMap map[st
 	gaugeMap = make(map[string]float64)
 	counterMap = make(map[string]int64)
 
-	// Восстановление данных Gauge
 	rows, err := d.DB.Conn.Query(ctx, `SELECT name, value FROM gauges`)
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to query gauges: %w", err)
@@ -69,7 +67,6 @@ func (d *DBDumper) RestoreData() (gaugeMap map[string]float64, counterMap map[st
 		gaugeMap[name] = value
 	}
 
-	// Восстановление данных Counter
 	rows, err = d.DB.Conn.Query(ctx, `SELECT name, value FROM counters`)
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to query counters: %w", err)
