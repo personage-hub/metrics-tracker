@@ -56,8 +56,14 @@ func (file *DumpFile) RestoreData() (map[string]float64, map[string]int64, error
 
 func (file *DumpFile) CheckHealth() bool {
 	var stat syscall.Statfs_t
-	free := stat.Bfree
+
+	err := syscall.Statfs(file.Path, &stat)
+	if err != nil {
+		return false
+	}
+
 	all := stat.Blocks
-	usagePercentage := (1 - float64(free)/float64(all)) * 100
+	free := stat.Bfree
+	usagePercentage := (1 - float64(free)/float64(all)) * 10
 	return usagePercentage < 90
 }

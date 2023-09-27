@@ -89,9 +89,5 @@ func (d *DBDumper) CheckHealth() bool {
 	if d.DB.Conn == nil {
 		return false
 	}
-	err := d.DB.Conn.Ping(context.Background())
-	if err != nil {
-		return false
-	}
-	return true
+	return d.DB.Conn.Ping(context.Background()) == nil
 }
