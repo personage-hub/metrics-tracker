@@ -84,3 +84,14 @@ func (d *DBDumper) RestoreData() (gaugeMap map[string]float64, counterMap map[st
 
 	return gaugeMap, counterMap, nil
 }
+
+func (d *DBDumper) CheckHealth() bool {
+	if d.DB.Conn == nil {
+		return false
+	}
+	err := d.DB.Conn.Ping(context.Background())
+	if err != nil {
+		return false
+	}
+	return true
+}

@@ -79,3 +79,7 @@ func (m *MemStorage) GetCounterMetric(metricName string) (int64, bool) {
 	}
 	return 0, false
 }
+
+func (m *MemStorage) CheckKeeper() bool {
+	return m.keeper.CheckHealth()
+}

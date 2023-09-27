@@ -14,6 +14,7 @@ type Storage interface {
 	CounterMap() map[string]int64
 	GetGaugeMetric(metricName string) (float64, bool)
 	GetCounterMetric(metricName string) (int64, bool)
+	CheckKeeper() bool
 }
 
 func PeriodicSave(s Storage, keeper dumper.Dumper, saveInterval int64) {
