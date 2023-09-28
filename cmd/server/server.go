@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/personage-hub/metrics-tracker/internal/consts"
-	"github.com/personage-hub/metrics-tracker/internal/db"
 	"go.uber.org/zap"
 	"io"
 	"net/http"
@@ -20,14 +19,12 @@ import (
 
 type Server struct {
 	storage storage.Storage
-	db      db.Database
 	logger  *zap.Logger
 }
 
-func NewServer(storage storage.Storage, db db.Database, logger *zap.Logger) *Server {
+func NewServer(storage storage.Storage, logger *zap.Logger) *Server {
 	return &Server{
 		storage: storage,
-		db:      db,
 		logger:  logger,
 	}
 }

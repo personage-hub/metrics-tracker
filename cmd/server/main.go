@@ -45,7 +45,7 @@ func main() {
 	go storage.PeriodicSave(s, d, config.StoreInterval)
 
 	log.Info("Running server", zap.String("address", config.ServerAddress))
-	server := NewServer(s, database, log)
+	server := NewServer(s, log)
 	r := chi.NewRouter()
 	r.Use(middlewares.RequestWithLogging(server.logger))
 	r.Use(middlewares.GzipHandler)

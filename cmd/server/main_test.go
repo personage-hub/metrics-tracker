@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/personage-hub/metrics-tracker/internal/db"
 	"github.com/personage-hub/metrics-tracker/internal/dumper"
 	"github.com/personage-hub/metrics-tracker/internal/logger"
 	"net/http"
@@ -23,9 +22,8 @@ func TestUpdateMetricFunc(t *testing.T) {
 	keeper := dumper.NewDumper("/tmp/temp.json")
 	s, _ := storage.NewMemStorage(keeper, false)
 	log, _ := logger.Initialize("info")
-	database, _ := db.CreateAndConnect("")
 
-	server := NewServer(s, database, log)
+	server := NewServer(s, log)
 	type want struct {
 		statusCode int
 	}
@@ -139,8 +137,7 @@ func TestUpdateGaugeMetricStorage(t *testing.T) {
 			keeper := dumper.NewDumper("/tmp/temp.json")
 			s, _ := storage.NewMemStorage(keeper, false)
 			log, _ := logger.Initialize("info")
-			database, _ := db.CreateAndConnect("")
-			server := NewServer(s, database, log)
+			server := NewServer(s, log)
 			uri := "/update/"
 			request := httptest.NewRequest(http.MethodPost, uri, bytes.NewBuffer([]byte(tt.metric)))
 			response := httptest.NewRecorder()
@@ -190,8 +187,7 @@ func TestUpdateCounterMetricStorage(t *testing.T) {
 			keeper := dumper.NewDumper("/tmp/temp.json")
 			s, _ := storage.NewMemStorage(keeper, false)
 			log, _ := logger.Initialize("info")
-			database, _ := db.CreateAndConnect("")
-			server := NewServer(s, database, log)
+			server := NewServer(s, log)
 			uri := "/update/"
 			request := httptest.NewRequest(http.MethodPost, uri, bytes.NewBuffer([]byte(tt.metric)))
 			response := httptest.NewRecorder()
