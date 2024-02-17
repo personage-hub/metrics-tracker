@@ -13,6 +13,7 @@ type Config struct {
 	StoreInterval int64
 	FileStorage   string
 	Restore       bool
+	DatabaseDSN   string
 }
 
 func isValidPath(path string) bool {
@@ -40,7 +41,7 @@ func parseFlags() Config {
 	flag.Int64Var(
 		&config.StoreInterval,
 		"i",
-		300,
+		2,
 		"The time interval in seconds after which the current data are saved to disk "+
 			"(a value of 0 makes the write synchronous)",
 	)
@@ -56,11 +57,17 @@ func parseFlags() Config {
 		true,
 		"A boolean setting that dictates if the server should load values saved earlier from storage upon startup ",
 	)
-
+	//Строка с адресом подключения к БД должна получаться из переменной окружения DATABASE_DSN или флага командной строки -d
+	flag.StringVar(
+		&config.DatabaseDSN,
+		"d",
+		"",
+		"Database host",
+	)
+	flag.Parse()
 	if envValue := os.Getenv("ADDRESS"); envValue != "" {
 		config.ServerAddress = envValue
 	}
-	flag.Parse()
 	if envValue := os.Getenv("STORE_INTERVAL"); envValue != "" {
 		val, err := strconv.ParseInt(envValue, 10, 64)
 		if err == nil {
@@ -79,6 +86,9 @@ func parseFlags() Config {
 			_ = fmt.Errorf("failed parse restore flag: %w", err)
 		}
 		config.Restore = boolValue
+	}
+	if enValue := os.Getenv("DATABASE_DSN"); enValue != "" {
+		config.DatabaseDSN = enValue
 	}
 	return config
 }

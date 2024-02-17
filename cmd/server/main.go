@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/personage-hub/metrics-tracker/internal/db"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -17,9 +18,23 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
-	d := dumper.NewDumper(config.FileStorage)
-	s, err := storage.NewMemStorage(d, config.Restore)
+	var database db.Database
+	var s storage.Storage
+	var d dumper.Dumper
+	if config.DatabaseDSN == "" {
+		d = dumper.NewDumper(config.FileStorage)
+	} else {
+		database, err = db.CreateAndConnect(config.DatabaseDSN)
+		if err != nil {
+			log.Error("DB error", zap.Error(err))
+		}
+		err = database.DoMigrations()
+		if err != nil {
+			log.Error("DB error", zap.Error(err))
+		}
+		d = dumper.NewDBDumper(database)
+	}
+	s, err = storage.NewMemStorage(d, config.Restore)
 
 	if err != nil {
 		log.Error("skipping restore due to error", zap.Error(err))
@@ -27,7 +42,7 @@ func main() {
 		log.Info("restore successfully complete")
 	}
 
-	go s.PeriodicSave(config.StoreInterval)
+	go storage.PeriodicSave(s, d, config.StoreInterval)
 
 	log.Info("Running server", zap.String("address", config.ServerAddress))
 	server := NewServer(s, log)
@@ -35,7 +50,6 @@ func main() {
 	r.Use(middlewares.RequestWithLogging(server.logger))
 	r.Use(middlewares.GzipHandler)
 	r.Mount("/", server.MetricRoute())
-
 	err = http.ListenAndServe(config.ServerAddress, r)
 
 	if err != nil {

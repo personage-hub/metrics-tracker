@@ -22,6 +22,7 @@ func TestUpdateMetricFunc(t *testing.T) {
 	keeper := dumper.NewDumper("/tmp/temp.json")
 	s, _ := storage.NewMemStorage(keeper, false)
 	log, _ := logger.Initialize("info")
+
 	server := NewServer(s, log)
 	type want struct {
 		statusCode int

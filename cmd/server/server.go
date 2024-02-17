@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"github.com/personage-hub/metrics-tracker/internal/consts"
 	"go.uber.org/zap"
@@ -17,8 +19,7 @@ import (
 
 type Server struct {
 	storage storage.Storage
-
-	logger *zap.Logger
+	logger  *zap.Logger
 }
 
 func NewServer(storage storage.Storage, logger *zap.Logger) *Server {
@@ -26,6 +27,14 @@ func NewServer(storage storage.Storage, logger *zap.Logger) *Server {
 		storage: storage,
 		logger:  logger,
 	}
+}
+
+func (s *Server) handlePing(res http.ResponseWriter, req *http.Request) {
+	if !s.storage.CheckKeeper() {
+		http.Error(res, "Persistence storage is not ok", http.StatusInternalServerError)
+		return
+	}
+	res.WriteHeader(http.StatusOK)
 }
 
 func (s *Server) updateMetricJSON(res http.ResponseWriter, req *http.Request) {
@@ -203,10 +212,50 @@ func (s *Server) metricGetJSON(rw http.ResponseWriter, r *http.Request) {
 	rw.Write(data) // send back the retrieved metric
 }
 
+func (s *Server) batchUpdate(rw http.ResponseWriter, r *http.Request) {
+	var m []metrics.Metrics
+	var buf bytes.Buffer
+	s.logger.Info("reading buffer")
+	_, err := buf.ReadFrom(r.Body)
+	if err != nil {
+		s.logger.Error("failed read buffer", zap.Error(err))
+		http.Error(rw, err.Error(), http.StatusBadRequest)
+		return
+	}
+	err = json.Unmarshal(buf.Bytes(), &m)
+	if err != nil {
+		s.logger.Error("failed unmarshal data", zap.Error(err))
+		http.Error(rw, err.Error(), http.StatusBadRequest)
+		return
+	}
+	for _, v := range m {
+		switch v.MType {
+		case "gauge":
+			if v.Value == nil {
+				http.Error(rw, "metric value should not be empty", http.StatusBadRequest)
+				return
+			}
+			s.storage.GaugeUpdate(v.ID, *v.Value)
+		case "counter":
+			if v.Delta == nil {
+				http.Error(rw, "metric value should not be empty", http.StatusBadRequest)
+				return
+			}
+			s.storage.CounterUpdate(v.ID, *v.Delta)
+		default:
+			http.Error(rw, "incorrect metric type", http.StatusBadRequest)
+		}
+	}
+	rw.WriteHeader(http.StatusOK)
+
+}
+
 func (s *Server) MetricRoute() *chi.Mux {
 	r := chi.NewRouter()
 	r.Get("/", s.metricsHandle)
+	r.Get("/ping", s.handlePing)
 	r.Get("/value/{metricType}/{metricName}", s.metricGet)
+	r.Post("/updates/", s.batchUpdate)
 	r.Post("/update/{metricType}/{metricName}/{metricValue}", s.updateMetric)
 	r.Post("/update/", s.updateMetricJSON)
 	r.Post("/value/", s.metricGetJSON)
